@@ -2,55 +2,197 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** iOS 18 SwiftUI 앱 `CaptureBox`를 만들어 최근 1년의 스크린샷과 저장 이미지 후보를 온디바이스로 분석하고, 앱 내부 보관함에서 6개 카테고리와 미분류로 자동 정리한다.
+**Goal:** TCA 기반 iOS 18 SwiftUI 앱 `CaptureBox`를 만들어 최근 1년의 스크린샷과 저장 이미지 후보를 온디바이스로 분석하고, 앱 내부 보관함에서 6개 카테고리와 미분류로 자동 정리한다.
 
-**Architecture:** 앱은 SwiftUI 화면, ViewModel, 서비스, 로컬 저장소로 나눈다. PhotoKit은 후보 이미지 수집과 썸네일/원본 요청만 담당하고, Vision은 OCR/QR/바코드 분석만 담당하며, 분류는 순수 Swift 규칙 엔진으로 테스트 가능하게 만든다. MVP에서는 Photos 원본 수정, 광고, 서버 업로드, Gemma 4 E2B를 제외한다.
+**Architecture:** 전체 앱 구조는 TCA로 일원화한다. SwiftUI View는 `StoreOf<Feature>`만 관찰하고 액션을 보낸다. 상태 전이와 비동기 흐름은 Feature/Reducer가 담당하며, PhotoKit/Vision/SwiftData 접근은 TCA Dependency Client와 Repository 구현체로 분리한다.
 
-**Tech Stack:** Swift 6, SwiftUI, Photos/PhotoKit, Vision, SwiftData, XCTest, iOS 18, Xcode 16 이상.
+**Tech Stack:** Swift 6, SwiftUI, The Composable Architecture, Photos/PhotoKit, Vision, SwiftData, XCTest, iOS 18, Xcode 16 이상.
 
 ---
 
-## 파일 구조
+## 1. 아키텍처 결정
+
+MVP는 기존 MV + Service + Coordinator 계획 대신 아래 구조를 사용한다.
+
+```text
+SwiftUI Views
+  ↓
+TCA Store
+  ↓
+Feature / Reducer
+  ↓
+Dependency Clients
+  ↓
+Repository / Live Services
+  ↓
+PhotoKit / Vision / SwiftData
+```
+
+핵심 원칙:
+
+- 모든 화면 상태는 TCA `State`에 둔다.
+- 모든 사용자 이벤트와 비동기 결과는 TCA `Action`으로 표현한다.
+- 긴 스캔 플로우는 `ScanFeature`의 Effect로 처리한다.
+- 기존 계획의 `ScanCoordinator`는 만들지 않는다.
+- 기존 계획의 화면별 ViewModel은 만들지 않는다.
+- Repository는 저장소 추상화로 둔다.
+- PhotoKit, Vision, Classification, Repository는 TCA Dependency로 주입한다.
+- SwiftUI View는 비즈니스 로직을 갖지 않는다.
+
+## 2. 파일 구조
 
 새 Xcode 프로젝트 루트는 `CaptureBox/`로 둔다.
 
-- Create: `CaptureBox/CaptureBoxApp.swift` - 앱 진입점과 SwiftData 컨테이너 연결
-- Create: `CaptureBox/App/AppState.swift` - 온보딩, 권한, 스캔 완료 여부 같은 앱 전역 상태
-- Create: `CaptureBox/Models/CaptureCategory.swift` - MVP 카테고리 enum
-- Create: `CaptureBox/Models/CapturedImageItem.swift` - 분석된 이미지 모델
-- Create: `CaptureBox/Models/ScanSession.swift` - 스캔 세션 모델
-- Create: `CaptureBox/Models/VisionAnalysisResult.swift` - OCR/코드 감지 결과
-- Create: `CaptureBox/Services/ClassificationService.swift` - 규칙 기반 분류 엔진
-- Create: `CaptureBox/Services/PhotoLibraryService.swift` - PhotoKit 권한과 이미지 fetch
-- Create: `CaptureBox/Services/VisionAnalysisService.swift` - Vision OCR/코드 분석
-- Create: `CaptureBox/Services/LocalStore.swift` - SwiftData 저장/조회
-- Create: `CaptureBox/Services/ScanCoordinator.swift` - 스캔 진행, 취소, 저장 조율
-- Create: `CaptureBox/ViewModels/OnboardingViewModel.swift`
-- Create: `CaptureBox/ViewModels/ScanViewModel.swift`
-- Create: `CaptureBox/ViewModels/LibraryViewModel.swift`
-- Create: `CaptureBox/ViewModels/SearchViewModel.swift`
-- Create: `CaptureBox/Views/RootView.swift`
-- Create: `CaptureBox/Views/OnboardingView.swift`
-- Create: `CaptureBox/Views/ScanProgressView.swift`
-- Create: `CaptureBox/Views/ScanSummaryView.swift`
-- Create: `CaptureBox/Views/LibraryView.swift`
-- Create: `CaptureBox/Views/CategoryDetailView.swift`
-- Create: `CaptureBox/Views/ImageDetailView.swift`
-- Create: `CaptureBox/Views/SearchView.swift`
-- Create: `CaptureBox/Views/SettingsView.swift`
-- Create: `CaptureBox/Resources/InfoPlist.strings` - 권한 문구
-- Create: `CaptureBoxTests/ClassificationServiceTests.swift`
-- Create: `CaptureBoxTests/SearchIndexTests.swift`
-- Create: `CaptureBoxTests/ScanCoordinatorTests.swift`
+```text
+CaptureBox/
+  CaptureBoxApp.swift
+  App/
+    AppFeature.swift
+    AppView.swift
+  Domain/
+    CaptureCategory.swift
+    CapturedImage.swift
+    ScanModels.swift
+    VisionAnalysisResult.swift
+  Features/
+    Onboarding/
+      OnboardingFeature.swift
+      OnboardingView.swift
+    Library/
+      LibraryFeature.swift
+      LibraryView.swift
+    Scan/
+      ScanFeature.swift
+      ScanView.swift
+    Search/
+      SearchFeature.swift
+      SearchView.swift
+    ImageDetail/
+      ImageDetailFeature.swift
+      ImageDetailView.swift
+    Settings/
+      SettingsFeature.swift
+      SettingsView.swift
+  Dependencies/
+    PhotoLibraryClient.swift
+    VisionClient.swift
+    ClassificationClient.swift
+    CapturedImageRepository.swift
+  Live/
+    LivePhotoLibraryClient.swift
+    LiveVisionClient.swift
+    RuleBasedClassificationClient.swift
+    SwiftDataCapturedImageRepository.swift
+  Persistence/
+    CapturedImageRecord.swift
+    ScanSessionRecord.swift
+  Views/
+    AssetThumbnailView.swift
+  Resources/
+    InfoPlist.strings
+
+CaptureBoxTests/
+  DomainTests.swift
+  ClassificationClientTests.swift
+  LibraryFeatureTests.swift
+  ScanFeatureTests.swift
+  SearchFeatureTests.swift
+```
+
+## 3. Dependency 설계
+
+`PhotoLibraryClient`
+
+- 사진 권한 상태 확인
+- 사진 권한 요청
+- 제한된 사진 선택 관리
+- 최근 1년/전체 기간 후보 asset 조회
+- 썸네일/분석용 이미지 요청
+
+`VisionClient`
+
+- OCR 텍스트 추출
+- QR/바코드 payload 추출
+
+`ClassificationClient`
+
+- `VisionAnalysisResult`와 source 정보를 받아 카테고리, 신뢰도, 민감 여부 산출
+- MVP에서는 규칙 기반 구현 사용
+
+`CapturedImageRepository`
+
+- 분석 결과 upsert
+- 전체 항목 조회
+- 카테고리별 조회
+- OCR 검색
+- 사용자 카테고리 수정
+- 스캔 세션 저장
+
+## 4. Feature 설계
+
+`AppFeature`
+
+- 앱 루트 상태
+- 온보딩 완료 여부
+- 탭/라우팅
+- 하위 Feature 조합
+
+`OnboardingFeature`
+
+- 권한 안내
+- 사진 권한 요청
+- 전체 접근/선택 접근 상태 반영
+- 온보딩 완료 액션
+
+`LibraryFeature`
+
+- 카테고리별 개수
+- 보관함 목록
+- 스캔 화면 표시
+- 검색/설정/상세 진입
+
+`ScanFeature`
+
+- 최근 1년 스캔
+- 전체 기간 스캔
+- 후보 수집
+- OCR/QR 분석
+- 분류
+- 저장
+- 진행률
+- 취소
+- 요약
+- 오류 상태
+
+`SearchFeature`
+
+- 검색어
+- OCR 텍스트 검색 결과
+- 결과 상세 진입
+
+`ImageDetailFeature`
+
+- 이미지 상세
+- OCR 텍스트 표시
+- 카테고리 수동 변경
+- 민감 정보 표시
+
+`SettingsFeature`
+
+- 권한 상태 표시
+- 선택한 사진 관리
+- 전체 기간 스캔 진입
+- 개인정보 설명
 
 ---
 
-### Task 1: Xcode 프로젝트 생성과 기본 설정
+### Task 1: Xcode 프로젝트 생성과 TCA 의존성 추가
 
 **Files:**
 - Create: `CaptureBox.xcodeproj`
 - Create: `CaptureBox/CaptureBoxApp.swift`
-- Create: `CaptureBox/Views/RootView.swift`
+- Create: `CaptureBox/App/AppFeature.swift`
+- Create: `CaptureBox/App/AppView.swift`
 - Create: `CaptureBox/Resources/InfoPlist.strings`
 - Test: Xcode build
 
@@ -71,7 +213,21 @@ Minimum Deployments: iOS 18.0
 
 Expected: `CaptureBox.xcodeproj`, `CaptureBox/`, `CaptureBoxTests/`가 생성된다.
 
-- [ ] **Step 2: 권한 문구 추가**
+- [ ] **Step 2: TCA 패키지 추가**
+
+Run in Xcode:
+
+```text
+File > Add Package Dependencies...
+Package URL: https://github.com/pointfreeco/swift-composable-architecture
+Dependency Rule: Up to Next Major Version
+Add package product: ComposableArchitecture
+Target: CaptureBox
+```
+
+Expected: 앱 타겟에서 `import ComposableArchitecture`가 가능하다.
+
+- [ ] **Step 3: 권한 문구 추가**
 
 Xcode target `CaptureBox`의 Info 설정에 아래 키를 추가한다.
 
@@ -83,51 +239,201 @@ Privacy - Photo Library Additions Usage Description
 향후 사용자가 요청할 때 Photos 앨범을 만들기 위해 필요할 수 있습니다. MVP에서는 사진 앱을 수정하지 않습니다.
 ```
 
-Expected: 사진 권한 요청 시 한국어 목적 문구가 표시된다.
+- [ ] **Step 4: AppFeature 기본 뼈대 작성**
 
-- [ ] **Step 3: 앱 진입점 작성**
+Create `CaptureBox/App/AppFeature.swift`:
+
+```swift
+import ComposableArchitecture
+
+@Reducer
+struct AppFeature {
+    @ObservableState
+    struct State: Equatable {
+        var hasCompletedOnboarding = false
+        var onboarding = OnboardingFeature.State()
+        var library = LibraryFeature.State()
+    }
+
+    enum Action: Equatable {
+        case appStarted
+        case onboarding(OnboardingFeature.Action)
+        case library(LibraryFeature.Action)
+    }
+
+    var body: some ReducerOf<Self> {
+        Scope(state: \.onboarding, action: \.onboarding) {
+            OnboardingFeature()
+        }
+        Scope(state: \.library, action: \.library) {
+            LibraryFeature()
+        }
+        Reduce { state, action in
+            switch action {
+            case .appStarted:
+                state.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+                return .none
+
+            case .onboarding(.delegate(.completed)):
+                state.hasCompletedOnboarding = true
+                UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                return .none
+
+            case .onboarding, .library:
+                return .none
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 5: 임시 하위 Feature 작성**
+
+Create `CaptureBox/Features/Onboarding/OnboardingFeature.swift`:
+
+```swift
+import ComposableArchitecture
+
+@Reducer
+struct OnboardingFeature {
+    @ObservableState
+    struct State: Equatable {}
+
+    enum Action: Equatable {
+        case startButtonTapped
+        case delegate(Delegate)
+
+        enum Delegate: Equatable {
+            case completed
+        }
+    }
+
+    var body: some ReducerOf<Self> {
+        Reduce { _, action in
+            switch action {
+            case .startButtonTapped:
+                return .send(.delegate(.completed))
+            case .delegate:
+                return .none
+            }
+        }
+    }
+}
+```
+
+Create `CaptureBox/Features/Library/LibraryFeature.swift`:
+
+```swift
+import ComposableArchitecture
+
+@Reducer
+struct LibraryFeature {
+    @ObservableState
+    struct State: Equatable {}
+
+    enum Action: Equatable {}
+
+    var body: some ReducerOf<Self> {
+        Reduce { _, _ in .none }
+    }
+}
+```
+
+- [ ] **Step 6: AppView 작성**
+
+Create `CaptureBox/App/AppView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct AppView: View {
+    let store: StoreOf<AppFeature>
+
+    var body: some View {
+        Group {
+            if store.hasCompletedOnboarding {
+                LibraryView(store: store.scope(state: \.library, action: \.library))
+            } else {
+                OnboardingView(store: store.scope(state: \.onboarding, action: \.onboarding))
+            }
+        }
+        .task {
+            await store.send(.appStarted).finish()
+        }
+    }
+}
+```
+
+Create `CaptureBox/Features/Onboarding/OnboardingView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct OnboardingView: View {
+    let store: StoreOf<OnboardingFeature>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+            Text("스크린샷과 저장 이미지를\n기기 안에서 정리합니다")
+                .font(.largeTitle.bold())
+            Text("사진은 서버로 업로드하지 않고 기기 안에서만 분석합니다.")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("사진 접근 허용하기") {
+                store.send(.startButtonTapped)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding(24)
+    }
+}
+```
+
+Create `CaptureBox/Features/Library/LibraryView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct LibraryView: View {
+    let store: StoreOf<LibraryFeature>
+
+    var body: some View {
+        NavigationStack {
+            Text("보관함")
+                .navigationTitle("보관함")
+        }
+    }
+}
+```
+
+- [ ] **Step 7: 앱 진입점 작성**
 
 Replace `CaptureBox/CaptureBoxApp.swift`:
 
 ```swift
-import SwiftData
+import ComposableArchitecture
 import SwiftUI
 
 @main
 struct CaptureBoxApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AppView(
+                store: Store(initialState: AppFeature.State()) {
+                    AppFeature()
+                }
+            )
         }
-        .modelContainer(for: [
-            CapturedImageItem.self,
-            ScanSession.self
-        ])
     }
 }
 ```
 
-- [ ] **Step 4: 임시 RootView 작성**
-
-Replace `CaptureBox/Views/RootView.swift`:
-
-```swift
-import SwiftUI
-
-struct RootView: View {
-    var body: some View {
-        Text("CaptureBox")
-            .font(.title)
-            .padding()
-    }
-}
-
-#Preview {
-    RootView()
-}
-```
-
-- [ ] **Step 5: 빌드 확인**
+- [ ] **Step 8: 빌드 확인**
 
 Run:
 
@@ -137,40 +443,44 @@ xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platfo
 
 Expected: `** BUILD SUCCEEDED **`
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add CaptureBox.xcodeproj CaptureBox CaptureBoxTests
-git commit -m "chore: create CaptureBox iOS project"
+git commit -m "chore: create TCA CaptureBox project"
 ```
 
 ---
 
-### Task 2: 핵심 모델 정의
+### Task 2: 도메인 모델 정의
 
 **Files:**
-- Create: `CaptureBox/Models/CaptureCategory.swift`
-- Create: `CaptureBox/Models/VisionAnalysisResult.swift`
-- Create: `CaptureBox/Models/CapturedImageItem.swift`
-- Create: `CaptureBox/Models/ScanSession.swift`
-- Test: `CaptureBoxTests/ModelTests.swift`
+- Create: `CaptureBox/Domain/CaptureCategory.swift`
+- Create: `CaptureBox/Domain/CapturedImage.swift`
+- Create: `CaptureBox/Domain/ScanModels.swift`
+- Create: `CaptureBox/Domain/VisionAnalysisResult.swift`
+- Test: `CaptureBoxTests/DomainTests.swift`
 
-- [ ] **Step 1: 모델 테스트 작성**
+- [ ] **Step 1: 도메인 테스트 작성**
 
-Create `CaptureBoxTests/ModelTests.swift`:
+Create `CaptureBoxTests/DomainTests.swift`:
 
 ```swift
 import XCTest
 @testable import CaptureBox
 
-final class ModelTests: XCTestCase {
-    func testCategoryKoreanTitles() {
+final class DomainTests: XCTestCase {
+    func testCategoryTitles() {
         XCTAssertEqual(CaptureCategory.coupon.title, "쿠폰")
+        XCTAssertEqual(CaptureCategory.receipt.title, "영수증")
+        XCTAssertEqual(CaptureCategory.delivery.title, "배송")
+        XCTAssertEqual(CaptureCategory.ticketReservation.title, "티켓/예약")
+        XCTAssertEqual(CaptureCategory.addressMap.title, "주소/지도")
         XCTAssertEqual(CaptureCategory.payment.title, "계좌/결제")
         XCTAssertEqual(CaptureCategory.unknown.title, "미분류")
     }
 
-    func testPaymentCategoryIsSensitive() {
+    func testPaymentIsSensitive() {
         XCTAssertTrue(CaptureCategory.payment.isSensitive)
         XCTAssertFalse(CaptureCategory.coupon.isSensitive)
     }
@@ -182,19 +492,19 @@ final class ModelTests: XCTestCase {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ModelTests
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/DomainTests
 ```
 
 Expected: `Cannot find 'CaptureCategory' in scope`
 
-- [ ] **Step 3: 카테고리 모델 작성**
+- [ ] **Step 3: CaptureCategory 작성**
 
-Create `CaptureBox/Models/CaptureCategory.swift`:
+Create `CaptureBox/Domain/CaptureCategory.swift`:
 
 ```swift
 import Foundation
 
-enum CaptureCategory: String, CaseIterable, Codable, Identifiable {
+enum CaptureCategory: String, CaseIterable, Codable, Equatable, Identifiable {
     case coupon
     case receipt
     case delivery
@@ -223,9 +533,9 @@ enum CaptureCategory: String, CaseIterable, Codable, Identifiable {
 }
 ```
 
-- [ ] **Step 4: 분석 결과 모델 작성**
+- [ ] **Step 4: 나머지 도메인 모델 작성**
 
-Create `CaptureBox/Models/VisionAnalysisResult.swift`:
+Create `CaptureBox/Domain/VisionAnalysisResult.swift`:
 
 ```swift
 import Foundation
@@ -243,34 +553,332 @@ struct VisionAnalysisResult: Equatable, Codable {
 }
 ```
 
-- [ ] **Step 5: SwiftData 이미지 모델 작성**
-
-Create `CaptureBox/Models/CapturedImageItem.swift`:
+Create `CaptureBox/Domain/CapturedImage.swift`:
 
 ```swift
 import Foundation
-import SwiftData
 
-enum CaptureSourceKind: String, Codable {
+enum CaptureSourceKind: String, Codable, Equatable {
     case screenshot
     case savedImageCandidate
     case manualSelection
 }
 
-enum ReviewStatus: String, Codable {
+enum ReviewStatus: String, Codable, Equatable {
     case new
     case confirmed
     case changedByUser
     case ignored
 }
 
+struct CapturedImage: Equatable, Identifiable, Codable {
+    var id: String { assetLocalIdentifier }
+    var assetLocalIdentifier: String
+    var sourceKind: CaptureSourceKind
+    var creationDate: Date?
+    var addedDate: Date?
+    var recognizedText: String
+    var detectedCodes: [String]
+    var category: CaptureCategory
+    var confidence: Double
+    var reviewStatus: ReviewStatus
+    var isSensitive: Bool
+    var lastAnalyzedAt: Date
+}
+```
+
+Create `CaptureBox/Domain/ScanModels.swift`:
+
+```swift
+import Foundation
+
+enum ScanRange: String, Codable, Equatable {
+    case recentYear
+    case allTime
+}
+
+enum ScanPhase: Equatable {
+    case idle
+    case findingImages
+    case analyzing
+    case saving
+    case completed
+    case cancelled
+    case failed(String)
+
+    var title: String {
+        switch self {
+        case .idle: "대기 중"
+        case .findingImages: "이미지 찾는 중"
+        case .analyzing: "분석 중"
+        case .saving: "저장 중"
+        case .completed: "완료"
+        case .cancelled: "취소됨"
+        case .failed: "실패"
+        }
+    }
+}
+
+struct ScanProgress: Equatable {
+    var phase: ScanPhase = .idle
+    var candidateCount = 0
+    var analyzedCount = 0
+    var classifiedCount = 0
+    var unknownCount = 0
+}
+
+struct PhotoAssetCandidate: Equatable, Identifiable {
+    var id: String
+    var sourceKind: CaptureSourceKind
+    var creationDate: Date?
+    var addedDate: Date?
+}
+```
+
+- [ ] **Step 5: 테스트 통과 확인**
+
+Run:
+
+```bash
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/DomainTests
+```
+
+Expected: `** TEST SUCCEEDED **`
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add CaptureBox/Domain CaptureBoxTests/DomainTests.swift
+git commit -m "feat: add capture domain models"
+```
+
+---
+
+### Task 3: Dependency Client와 Repository 인터페이스 작성
+
+**Files:**
+- Create: `CaptureBox/Dependencies/PhotoLibraryClient.swift`
+- Create: `CaptureBox/Dependencies/VisionClient.swift`
+- Create: `CaptureBox/Dependencies/ClassificationClient.swift`
+- Create: `CaptureBox/Dependencies/CapturedImageRepository.swift`
+
+- [ ] **Step 1: PhotoLibraryClient 작성**
+
+Create `CaptureBox/Dependencies/PhotoLibraryClient.swift`:
+
+```swift
+import ComposableArchitecture
+import Foundation
+import Photos
+import UIKit
+
+struct PhotoLibraryClient {
+    var authorizationStatus: @Sendable () -> PHAuthorizationStatus
+    var requestAuthorization: @Sendable () async -> PHAuthorizationStatus
+    var fetchCandidates: @Sendable (_ range: ScanRange) async throws -> [PhotoAssetCandidate]
+    var requestImage: @Sendable (_ localIdentifier: String, _ targetSize: CGSize) async -> UIImage?
+    var presentLimitedLibraryPicker: @Sendable () async -> Void
+}
+
+extension PhotoLibraryClient: DependencyKey {
+    static let liveValue = PhotoLibraryClient.live
+    static let testValue = PhotoLibraryClient(
+        authorizationStatus: { .authorized },
+        requestAuthorization: { .authorized },
+        fetchCandidates: { _ in [] },
+        requestImage: { _, _ in nil },
+        presentLimitedLibraryPicker: {}
+    )
+}
+
+extension DependencyValues {
+    var photoLibraryClient: PhotoLibraryClient {
+        get { self[PhotoLibraryClient.self] }
+        set { self[PhotoLibraryClient.self] = newValue }
+    }
+}
+```
+
+- [ ] **Step 2: VisionClient 작성**
+
+Create `CaptureBox/Dependencies/VisionClient.swift`:
+
+```swift
+import ComposableArchitecture
+import UIKit
+
+struct VisionClient {
+    var analyze: @Sendable (_ image: UIImage) async -> VisionAnalysisResult
+}
+
+extension VisionClient: DependencyKey {
+    static let liveValue = VisionClient.live
+    static let testValue = VisionClient(analyze: { _ in .empty })
+}
+
+extension DependencyValues {
+    var visionClient: VisionClient {
+        get { self[VisionClient.self] }
+        set { self[VisionClient.self] = newValue }
+    }
+}
+```
+
+- [ ] **Step 3: ClassificationClient 작성**
+
+Create `CaptureBox/Dependencies/ClassificationClient.swift`:
+
+```swift
+import ComposableArchitecture
+import Foundation
+
+struct ClassificationResult: Equatable {
+    var category: CaptureCategory
+    var confidence: Double
+    var reason: String
+    var isSensitive: Bool
+}
+
+struct ClassificationClient {
+    var classify: @Sendable (_ analysis: VisionAnalysisResult, _ sourceKind: CaptureSourceKind) -> ClassificationResult
+}
+
+extension ClassificationClient: DependencyKey {
+    static let liveValue = ClassificationClient.live
+    static let testValue = ClassificationClient(
+        classify: { _, _ in
+            ClassificationResult(category: .unknown, confidence: 0, reason: "test", isSensitive: false)
+        }
+    )
+}
+
+extension DependencyValues {
+    var classificationClient: ClassificationClient {
+        get { self[ClassificationClient.self] }
+        set { self[ClassificationClient.self] = newValue }
+    }
+}
+```
+
+- [ ] **Step 4: CapturedImageRepository 작성**
+
+Create `CaptureBox/Dependencies/CapturedImageRepository.swift`:
+
+```swift
+import ComposableArchitecture
+import Foundation
+
+struct CapturedImageRepository {
+    var upsert: @Sendable (_ image: CapturedImage) async throws -> Void
+    var all: @Sendable () async throws -> [CapturedImage]
+    var items: @Sendable (_ category: CaptureCategory) async throws -> [CapturedImage]
+    var search: @Sendable (_ query: String) async throws -> [CapturedImage]
+    var updateCategory: @Sendable (_ assetLocalIdentifier: String, _ category: CaptureCategory) async throws -> Void
+}
+
+extension CapturedImageRepository: DependencyKey {
+    static let liveValue = CapturedImageRepository.live
+    static let testValue = CapturedImageRepository(
+        upsert: { _ in },
+        all: { [] },
+        items: { _ in [] },
+        search: { _ in [] },
+        updateCategory: { _, _ in }
+    )
+}
+
+extension DependencyValues {
+    var capturedImageRepository: CapturedImageRepository {
+        get { self[CapturedImageRepository.self] }
+        set { self[CapturedImageRepository.self] = newValue }
+    }
+}
+```
+
+- [ ] **Step 5: 빌드 확인**
+
+Run:
+
+```bash
+xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
+
+Expected: live 구현이 아직 없어 `type 'PhotoLibraryClient' has no member 'live'` 류의 오류가 난다.
+
+- [ ] **Step 6: Commit은 하지 않는다**
+
+Task 4에서 live 구현을 추가한 뒤 함께 커밋한다.
+
+---
+
+### Task 4: Live 구현과 SwiftData Persistence
+
+**Files:**
+- Create: `CaptureBox/Persistence/CapturedImageRecord.swift`
+- Create: `CaptureBox/Persistence/ScanSessionRecord.swift`
+- Create: `CaptureBox/Live/LivePhotoLibraryClient.swift`
+- Create: `CaptureBox/Live/LiveVisionClient.swift`
+- Create: `CaptureBox/Live/RuleBasedClassificationClient.swift`
+- Create: `CaptureBox/Live/SwiftDataCapturedImageRepository.swift`
+- Modify: `CaptureBox/CaptureBoxApp.swift`
+- Test: `CaptureBoxTests/ClassificationClientTests.swift`
+
+- [ ] **Step 1: Classification 테스트 작성**
+
+Create `CaptureBoxTests/ClassificationClientTests.swift`:
+
+```swift
+import XCTest
+@testable import CaptureBox
+
+final class ClassificationClientTests: XCTestCase {
+    func testCouponWithQRCode() {
+        let client = ClassificationClient.live
+        let result = client.classify(
+            VisionAnalysisResult(
+                recognizedText: "스타벅스 쿠폰 할인 유효기간 2026.05.31",
+                detectedCodes: ["QR"],
+                hasBarcodeOrQRCode: true
+            ),
+            .screenshot
+        )
+
+        XCTAssertEqual(result.category, .coupon)
+        XCTAssertGreaterThanOrEqual(result.confidence, 0.55)
+        XCTAssertFalse(result.isSensitive)
+    }
+
+    func testPaymentIsSensitive() {
+        let client = ClassificationClient.live
+        let result = client.classify(
+            VisionAnalysisResult(
+                recognizedText: "국민은행 계좌 이체 입금 결제",
+                detectedCodes: [],
+                hasBarcodeOrQRCode: false
+            ),
+            .screenshot
+        )
+
+        XCTAssertEqual(result.category, .payment)
+        XCTAssertTrue(result.isSensitive)
+    }
+}
+```
+
+- [ ] **Step 2: SwiftData record 작성**
+
+Create `CaptureBox/Persistence/CapturedImageRecord.swift`:
+
+```swift
+import Foundation
+import SwiftData
+
 @Model
-final class CapturedImageItem {
+final class CapturedImageRecord {
     @Attribute(.unique) var assetLocalIdentifier: String
     var sourceKindRawValue: String
     var creationDate: Date?
     var addedDate: Date?
-    var thumbnailCacheKey: String
     var recognizedText: String
     var detectedCodes: [String]
     var categoryRawValue: String
@@ -279,69 +887,46 @@ final class CapturedImageItem {
     var isSensitive: Bool
     var lastAnalyzedAt: Date
 
-    init(
-        assetLocalIdentifier: String,
-        sourceKind: CaptureSourceKind,
-        creationDate: Date?,
-        addedDate: Date?,
-        thumbnailCacheKey: String,
-        recognizedText: String,
-        detectedCodes: [String],
-        category: CaptureCategory,
-        confidence: Double,
-        reviewStatus: ReviewStatus,
-        isSensitive: Bool,
-        lastAnalyzedAt: Date
-    ) {
-        self.assetLocalIdentifier = assetLocalIdentifier
-        self.sourceKindRawValue = sourceKind.rawValue
-        self.creationDate = creationDate
-        self.addedDate = addedDate
-        self.thumbnailCacheKey = thumbnailCacheKey
-        self.recognizedText = recognizedText
-        self.detectedCodes = detectedCodes
-        self.categoryRawValue = category.rawValue
-        self.confidence = confidence
-        self.reviewStatusRawValue = reviewStatus.rawValue
-        self.isSensitive = isSensitive
-        self.lastAnalyzedAt = lastAnalyzedAt
+    init(image: CapturedImage) {
+        assetLocalIdentifier = image.assetLocalIdentifier
+        sourceKindRawValue = image.sourceKind.rawValue
+        creationDate = image.creationDate
+        addedDate = image.addedDate
+        recognizedText = image.recognizedText
+        detectedCodes = image.detectedCodes
+        categoryRawValue = image.category.rawValue
+        confidence = image.confidence
+        reviewStatusRawValue = image.reviewStatus.rawValue
+        isSensitive = image.isSensitive
+        lastAnalyzedAt = image.lastAnalyzedAt
     }
 
-    var sourceKind: CaptureSourceKind {
-        CaptureSourceKind(rawValue: sourceKindRawValue) ?? .savedImageCandidate
-    }
-
-    var category: CaptureCategory {
-        CaptureCategory(rawValue: categoryRawValue) ?? .unknown
-    }
-
-    var reviewStatus: ReviewStatus {
-        ReviewStatus(rawValue: reviewStatusRawValue) ?? .new
-    }
-
-    func updateCategory(_ category: CaptureCategory) {
-        categoryRawValue = category.rawValue
-        reviewStatusRawValue = ReviewStatus.changedByUser.rawValue
-        isSensitive = category.isSensitive
+    var domain: CapturedImage {
+        CapturedImage(
+            assetLocalIdentifier: assetLocalIdentifier,
+            sourceKind: CaptureSourceKind(rawValue: sourceKindRawValue) ?? .savedImageCandidate,
+            creationDate: creationDate,
+            addedDate: addedDate,
+            recognizedText: recognizedText,
+            detectedCodes: detectedCodes,
+            category: CaptureCategory(rawValue: categoryRawValue) ?? .unknown,
+            confidence: confidence,
+            reviewStatus: ReviewStatus(rawValue: reviewStatusRawValue) ?? .new,
+            isSensitive: isSensitive,
+            lastAnalyzedAt: lastAnalyzedAt
+        )
     }
 }
 ```
 
-- [ ] **Step 6: SwiftData 스캔 세션 모델 작성**
-
-Create `CaptureBox/Models/ScanSession.swift`:
+Create `CaptureBox/Persistence/ScanSessionRecord.swift`:
 
 ```swift
 import Foundation
 import SwiftData
 
-enum ScanRange: String, Codable {
-    case recentYear
-    case allTime
-}
-
 @Model
-final class ScanSession {
+final class ScanSessionRecord {
     var id: UUID
     var rangeRawValue: String
     var startedAt: Date
@@ -373,154 +958,41 @@ final class ScanSession {
         self.unknownCount = unknownCount
         self.cancelled = cancelled
     }
-
-    var range: ScanRange {
-        ScanRange(rawValue: rangeRawValue) ?? .recentYear
-    }
 }
 ```
 
-- [ ] **Step 7: 테스트 통과 확인**
+- [ ] **Step 3: RuleBasedClassificationClient 작성**
 
-Run:
-
-```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ModelTests
-```
-
-Expected: `** TEST SUCCEEDED **`
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add CaptureBox/Models CaptureBoxTests/ModelTests.swift
-git commit -m "feat: add capture data models"
-```
-
----
-
-### Task 3: 규칙 기반 분류 엔진
-
-**Files:**
-- Create: `CaptureBox/Services/ClassificationService.swift`
-- Test: `CaptureBoxTests/ClassificationServiceTests.swift`
-
-- [ ] **Step 1: 실패하는 분류 테스트 작성**
-
-Create `CaptureBoxTests/ClassificationServiceTests.swift`:
-
-```swift
-import XCTest
-@testable import CaptureBox
-
-final class ClassificationServiceTests: XCTestCase {
-    let service = ClassificationService()
-
-    func testClassifiesCoupon() {
-        let result = service.classify(
-            analysis: VisionAnalysisResult(
-                recognizedText: "스타벅스 쿠폰 할인 유효기간 2026.05.31",
-                detectedCodes: ["QR"],
-                hasBarcodeOrQRCode: true
-            ),
-            sourceKind: .screenshot
-        )
-
-        XCTAssertEqual(result.category, .coupon)
-        XCTAssertGreaterThanOrEqual(result.confidence, 0.7)
-        XCTAssertFalse(result.isSensitive)
-    }
-
-    func testClassifiesDelivery() {
-        let result = service.classify(
-            analysis: VisionAnalysisResult(
-                recognizedText: "택배 배송조회 운송장번호 1234567890 출고 완료",
-                detectedCodes: [],
-                hasBarcodeOrQRCode: false
-            ),
-            sourceKind: .savedImageCandidate
-        )
-
-        XCTAssertEqual(result.category, .delivery)
-    }
-
-    func testClassifiesPaymentAsSensitive() {
-        let result = service.classify(
-            analysis: VisionAnalysisResult(
-                recognizedText: "국민은행 계좌 이체 입금 결제",
-                detectedCodes: [],
-                hasBarcodeOrQRCode: false
-            ),
-            sourceKind: .screenshot
-        )
-
-        XCTAssertEqual(result.category, .payment)
-        XCTAssertTrue(result.isSensitive)
-    }
-
-    func testLowSignalGoesUnknown() {
-        let result = service.classify(
-            analysis: VisionAnalysisResult(
-                recognizedText: "오늘 메모 참고",
-                detectedCodes: [],
-                hasBarcodeOrQRCode: false
-            ),
-            sourceKind: .screenshot
-        )
-
-        XCTAssertEqual(result.category, .unknown)
-        XCTAssertLessThan(result.confidence, 0.55)
-    }
-}
-```
-
-- [ ] **Step 2: 실패 확인**
-
-Run:
-
-```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ClassificationServiceTests
-```
-
-Expected: `Cannot find 'ClassificationService' in scope`
-
-- [ ] **Step 3: 분류 서비스 작성**
-
-Create `CaptureBox/Services/ClassificationService.swift`:
+Create `CaptureBox/Live/RuleBasedClassificationClient.swift`:
 
 ```swift
 import Foundation
 
-struct ClassificationResult: Equatable {
-    let category: CaptureCategory
-    let confidence: Double
-    let reason: String
-    let isSensitive: Bool
-}
-
-struct ClassificationService {
-    private let threshold = 0.55
-
-    func classify(
-        analysis: VisionAnalysisResult,
-        sourceKind: CaptureSourceKind
-    ) -> ClassificationResult {
+extension ClassificationClient {
+    static let live = ClassificationClient { analysis, _ in
         let text = analysis.recognizedText.lowercased()
         var scores: [CaptureCategory: Int] = [:]
         var reasons: [CaptureCategory: [String]] = [:]
 
-        addScore(for: .coupon, text: text, keywords: ["쿠폰", "할인", "적립", "유효기간", "만료", "coupon", "discount"], scores: &scores, reasons: &reasons)
-        addScore(for: .receipt, text: text, keywords: ["영수증", "합계", "총액", "승인번호", "주문번호", "receipt", "total"], scores: &scores, reasons: &reasons)
-        addScore(for: .delivery, text: text, keywords: ["배송", "택배", "운송장", "송장번호", "배송조회", "출고", "tracking", "shipment"], scores: &scores, reasons: &reasons)
-        addScore(for: .ticketReservation, text: text, keywords: ["티켓", "예매", "예약", "좌석", "탑승권", "체크인", "게이트", "booking", "ticket"], scores: &scores, reasons: &reasons)
-        addScore(for: .addressMap, text: text, keywords: ["주소", "지도", "길찾기", "도로명", "위치", "map", "address"], scores: &scores, reasons: &reasons)
-        addScore(for: .payment, text: text, keywords: ["계좌", "이체", "입금", "은행", "카드", "결제", "account", "bank"], scores: &scores, reasons: &reasons)
+        func add(_ category: CaptureCategory, _ keywords: [String]) {
+            for keyword in keywords where text.contains(keyword.lowercased()) {
+                scores[category, default: 0] += 1
+                reasons[category, default: []].append(keyword)
+            }
+        }
+
+        add(.coupon, ["쿠폰", "할인", "적립", "유효기간", "만료", "coupon", "discount"])
+        add(.receipt, ["영수증", "합계", "총액", "승인번호", "주문번호", "receipt", "total"])
+        add(.delivery, ["배송", "택배", "운송장", "송장번호", "배송조회", "출고", "tracking"])
+        add(.ticketReservation, ["티켓", "예매", "예약", "좌석", "탑승권", "체크인", "게이트", "booking"])
+        add(.addressMap, ["주소", "지도", "길찾기", "도로명", "위치", "map", "address"])
+        add(.payment, ["계좌", "이체", "입금", "은행", "카드", "결제", "account", "bank"])
 
         if analysis.hasBarcodeOrQRCode {
             scores[.coupon, default: 0] += 2
-            reasons[.coupon, default: []].append("QR/바코드 감지")
+            reasons[.coupon, default: []].append("QR/바코드")
             scores[.ticketReservation, default: 0] += 1
-            reasons[.ticketReservation, default: []].append("QR/바코드 감지")
+            reasons[.ticketReservation, default: []].append("QR/바코드")
         }
 
         guard let best = scores.max(by: { $0.value < $1.value }) else {
@@ -528,40 +1000,450 @@ struct ClassificationService {
         }
 
         let confidence = min(Double(best.value) / 6.0, 1.0)
-        guard confidence >= threshold else {
+        guard confidence >= 0.55 else {
             return ClassificationResult(category: .unknown, confidence: confidence, reason: "분류 신뢰도 낮음", isSensitive: false)
         }
 
-        let category = best.key
         return ClassificationResult(
-            category: category,
+            category: best.key,
             confidence: confidence,
-            reason: reasons[category, default: []].joined(separator: ", "),
-            isSensitive: category.isSensitive
+            reason: reasons[best.key, default: []].joined(separator: ", "),
+            isSensitive: best.key.isSensitive
         )
     }
+}
+```
 
-    private func addScore(
-        for category: CaptureCategory,
-        text: String,
-        keywords: [String],
-        scores: inout [CaptureCategory: Int],
-        reasons: inout [CaptureCategory: [String]]
-    ) {
-        for keyword in keywords where text.contains(keyword.lowercased()) {
-            scores[category, default: 0] += 1
-            reasons[category, default: []].append(keyword)
+- [ ] **Step 4: Vision live 작성**
+
+Create `CaptureBox/Live/LiveVisionClient.swift`:
+
+```swift
+import UIKit
+import Vision
+
+extension VisionClient {
+    static let live = VisionClient { image in
+        guard let cgImage = image.cgImage else { return .empty }
+
+        async let text = recognizeText(cgImage)
+        async let codes = detectCodes(cgImage)
+        let resultText = await text
+        let resultCodes = await codes
+
+        return VisionAnalysisResult(
+            recognizedText: resultText,
+            detectedCodes: resultCodes,
+            hasBarcodeOrQRCode: !resultCodes.isEmpty
+        )
+    }
+}
+
+private func recognizeText(_ cgImage: CGImage) async -> String {
+    await withCheckedContinuation { continuation in
+        let request = VNRecognizeTextRequest { request, _ in
+            let observations = request.results as? [VNRecognizedTextObservation] ?? []
+            let lines = observations.compactMap { $0.topCandidates(1).first?.string }
+            continuation.resume(returning: lines.joined(separator: "\n"))
+        }
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = ["ko-KR", "en-US"]
+
+        do {
+            try VNImageRequestHandler(cgImage: cgImage).perform([request])
+        } catch {
+            continuation.resume(returning: "")
+        }
+    }
+}
+
+private func detectCodes(_ cgImage: CGImage) async -> [String] {
+    await withCheckedContinuation { continuation in
+        let request = VNDetectBarcodesRequest { request, _ in
+            let observations = request.results as? [VNBarcodeObservation] ?? []
+            continuation.resume(returning: observations.compactMap(\.payloadStringValue))
+        }
+
+        do {
+            try VNImageRequestHandler(cgImage: cgImage).perform([request])
+        } catch {
+            continuation.resume(returning: [])
         }
     }
 }
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [ ] **Step 5: PhotoLibrary live 작성**
+
+Create `CaptureBox/Live/LivePhotoLibraryClient.swift`:
+
+```swift
+import Photos
+import UIKit
+
+extension PhotoLibraryClient {
+    static let live = PhotoLibraryClient(
+        authorizationStatus: {
+            PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        },
+        requestAuthorization: {
+            await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        },
+        fetchCandidates: { range in
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            fetchOptions.predicate = predicate(for: range)
+
+            let result = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            var screenshots: [PhotoAssetCandidate] = []
+            var savedImages: [PhotoAssetCandidate] = []
+
+            result.enumerateObjects { asset, _, _ in
+                let candidate = PhotoAssetCandidate(
+                    id: asset.localIdentifier,
+                    sourceKind: asset.mediaSubtypes.contains(.photoScreenshot) ? .screenshot : .savedImageCandidate,
+                    creationDate: asset.creationDate,
+                    addedDate: asset.creationDate
+                )
+
+                if asset.mediaSubtypes.contains(.photoScreenshot) {
+                    screenshots.append(candidate)
+                } else if asset.mediaSubtypes.isEmpty, asset.pixelWidth >= 600, asset.pixelHeight >= 600 {
+                    savedImages.append(candidate)
+                }
+            }
+
+            return screenshots + savedImages
+        },
+        requestImage: { localIdentifier, targetSize in
+            await withCheckedContinuation { continuation in
+                let result = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
+                guard let asset = result.firstObject else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let options = PHImageRequestOptions()
+                options.deliveryMode = .highQualityFormat
+                options.resizeMode = .fast
+                options.isNetworkAccessAllowed = true
+
+                PHImageManager.default().requestImage(
+                    for: asset,
+                    targetSize: targetSize,
+                    contentMode: .aspectFit,
+                    options: options
+                ) { image, _ in
+                    continuation.resume(returning: image)
+                }
+            }
+        },
+        presentLimitedLibraryPicker: {
+            await MainActor.run {
+                guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let controller = scene.windows.first?.rootViewController else {
+                    return
+                }
+                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: controller)
+            }
+        }
+    )
+}
+
+private func predicate(for range: ScanRange) -> NSPredicate {
+    let mediaPredicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+    guard range == .recentYear,
+          let startDate = Calendar.current.date(byAdding: .year, value: -1, to: Date()) else {
+        return mediaPredicate
+    }
+    let datePredicate = NSPredicate(format: "creationDate >= %@", startDate as NSDate)
+    return NSCompoundPredicate(andPredicateWithSubpredicates: [mediaPredicate, datePredicate])
+}
+```
+
+- [ ] **Step 6: SwiftData repository live 작성**
+
+Create `CaptureBox/Live/SwiftDataCapturedImageRepository.swift`:
+
+```swift
+import Foundation
+import SwiftData
+
+@MainActor
+final class RepositoryContainer {
+    static let shared = RepositoryContainer()
+
+    let modelContainer: ModelContainer
+
+    private init() {
+        modelContainer = try! ModelContainer(
+            for: CapturedImageRecord.self, ScanSessionRecord.self
+        )
+    }
+}
+
+extension CapturedImageRepository {
+    static let live = CapturedImageRepository(
+        upsert: { image in
+            await MainActor.run {
+                let context = RepositoryContainer.shared.modelContainer.mainContext
+                let id = image.assetLocalIdentifier
+                let descriptor = FetchDescriptor<CapturedImageRecord>(
+                    predicate: #Predicate { $0.assetLocalIdentifier == id }
+                )
+
+                if let existing = try? context.fetch(descriptor).first {
+                    existing.sourceKindRawValue = image.sourceKind.rawValue
+                    existing.creationDate = image.creationDate
+                    existing.addedDate = image.addedDate
+                    existing.recognizedText = image.recognizedText
+                    existing.detectedCodes = image.detectedCodes
+                    if existing.reviewStatusRawValue != ReviewStatus.changedByUser.rawValue {
+                        existing.categoryRawValue = image.category.rawValue
+                        existing.confidence = image.confidence
+                        existing.isSensitive = image.isSensitive
+                    }
+                    existing.lastAnalyzedAt = image.lastAnalyzedAt
+                } else {
+                    context.insert(CapturedImageRecord(image: image))
+                }
+
+                try? context.save()
+            }
+        },
+        all: {
+            await MainActor.run {
+                let context = RepositoryContainer.shared.modelContainer.mainContext
+                let descriptor = FetchDescriptor<CapturedImageRecord>(
+                    sortBy: [SortDescriptor(\.creationDate, order: .reverse)]
+                )
+                return (try? context.fetch(descriptor).map(\.domain)) ?? []
+            }
+        },
+        items: { category in
+            await MainActor.run {
+                let context = RepositoryContainer.shared.modelContainer.mainContext
+                let rawValue = category.rawValue
+                let descriptor = FetchDescriptor<CapturedImageRecord>(
+                    predicate: #Predicate { $0.categoryRawValue == rawValue },
+                    sortBy: [SortDescriptor(\.creationDate, order: .reverse)]
+                )
+                return (try? context.fetch(descriptor).map(\.domain)) ?? []
+            }
+        },
+        search: { query in
+            await MainActor.run {
+                let context = RepositoryContainer.shared.modelContainer.mainContext
+                let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard !normalized.isEmpty else { return [] }
+                let descriptor = FetchDescriptor<CapturedImageRecord>(
+                    sortBy: [SortDescriptor(\.creationDate, order: .reverse)]
+                )
+                let all = (try? context.fetch(descriptor).map(\.domain)) ?? []
+                return all.filter {
+                    $0.recognizedText.lowercased().contains(normalized)
+                        || $0.category.title.lowercased().contains(normalized)
+                }
+            }
+        },
+        updateCategory: { localIdentifier, category in
+            await MainActor.run {
+                let context = RepositoryContainer.shared.modelContainer.mainContext
+                let descriptor = FetchDescriptor<CapturedImageRecord>(
+                    predicate: #Predicate { $0.assetLocalIdentifier == localIdentifier }
+                )
+                guard let record = try? context.fetch(descriptor).first else { return }
+                record.categoryRawValue = category.rawValue
+                record.reviewStatusRawValue = ReviewStatus.changedByUser.rawValue
+                record.isSensitive = category.isSensitive
+                try? context.save()
+            }
+        }
+    )
+}
+```
+
+- [ ] **Step 7: CaptureBoxApp에서 SwiftData container 연결**
+
+Replace `CaptureBox/CaptureBoxApp.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+@main
+struct CaptureBoxApp: App {
+    var body: some Scene {
+        WindowGroup {
+            AppView(
+                store: Store(initialState: AppFeature.State()) {
+                    AppFeature()
+                }
+            )
+        }
+        .modelContainer(RepositoryContainer.shared.modelContainer)
+    }
+}
+```
+
+- [ ] **Step 8: 테스트와 빌드 확인**
 
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ClassificationServiceTests
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ClassificationClientTests
+xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
+
+Expected: both commands succeed.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add CaptureBox/Dependencies CaptureBox/Live CaptureBox/Persistence CaptureBox/CaptureBoxApp.swift CaptureBoxTests/ClassificationClientTests.swift
+git commit -m "feat: add TCA dependencies and live clients"
+```
+
+---
+
+### Task 5: OnboardingFeature 권한 플로우
+
+**Files:**
+- Modify: `CaptureBox/Features/Onboarding/OnboardingFeature.swift`
+- Modify: `CaptureBox/Features/Onboarding/OnboardingView.swift`
+- Test: `CaptureBoxTests/OnboardingFeatureTests.swift`
+
+- [ ] **Step 1: OnboardingFeature 테스트 작성**
+
+Create `CaptureBoxTests/OnboardingFeatureTests.swift`:
+
+```swift
+import ComposableArchitecture
+import Photos
+import XCTest
+@testable import CaptureBox
+
+@MainActor
+final class OnboardingFeatureTests: XCTestCase {
+    func testAuthorizedCompletesOnboarding() async {
+        let store = TestStore(initialState: OnboardingFeature.State()) {
+            OnboardingFeature()
+        } withDependencies: {
+            $0.photoLibraryClient.requestAuthorization = { .authorized }
+        }
+
+        await store.send(.photoAccessButtonTapped) {
+            $0.isRequestingPermission = true
+        }
+        await store.receive(.photoAuthorizationResponse(.authorized)) {
+            $0.isRequestingPermission = false
+            $0.authorizationStatus = .authorized
+        }
+        await store.receive(.delegate(.completed))
+    }
+}
+```
+
+- [ ] **Step 2: OnboardingFeature 구현**
+
+Replace `CaptureBox/Features/Onboarding/OnboardingFeature.swift`:
+
+```swift
+import ComposableArchitecture
+import Photos
+
+@Reducer
+struct OnboardingFeature {
+    @ObservableState
+    struct State: Equatable {
+        var authorizationStatus: PHAuthorizationStatus = .notDetermined
+        var isRequestingPermission = false
+    }
+
+    enum Action: Equatable {
+        case photoAccessButtonTapped
+        case photoAuthorizationResponse(PHAuthorizationStatus)
+        case delegate(Delegate)
+
+        enum Delegate: Equatable {
+            case completed
+        }
+    }
+
+    @Dependency(\.photoLibraryClient) var photoLibraryClient
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .photoAccessButtonTapped:
+                state.isRequestingPermission = true
+                return .run { send in
+                    await send(.photoAuthorizationResponse(await photoLibraryClient.requestAuthorization()))
+                }
+
+            case let .photoAuthorizationResponse(status):
+                state.isRequestingPermission = false
+                state.authorizationStatus = status
+                if status == .authorized || status == .limited {
+                    return .send(.delegate(.completed))
+                }
+                return .none
+
+            case .delegate:
+                return .none
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 3: OnboardingView 구현**
+
+Replace `CaptureBox/Features/Onboarding/OnboardingView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct OnboardingView: View {
+    let store: StoreOf<OnboardingFeature>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+            Text("스크린샷과 저장 이미지를\n기기 안에서 정리합니다")
+                .font(.largeTitle.bold())
+            Text("쿠폰, 영수증, 배송, 예약, 주소, 결제 메모를 자동으로 찾아 앱 내부 보관함에 정리합니다. 사진은 서버로 업로드하지 않습니다.")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Label("선택한 사진만 허용해도 사용할 수 있어요", systemImage: "checkmark.circle")
+                Label("전체 접근을 허용하면 자동 분류가 더 잘 됩니다", systemImage: "sparkles")
+                Label("MVP에서는 Photos 원본을 삭제하거나 이동하지 않습니다", systemImage: "lock.shield")
+            }
+            .font(.callout)
+            Spacer()
+            Button {
+                store.send(.photoAccessButtonTapped)
+            } label: {
+                Text(store.isRequestingPermission ? "권한 요청 중" : "사진 접근 허용하기")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(store.isRequestingPermission)
+        }
+        .padding(24)
+    }
+}
+```
+
+- [ ] **Step 4: 테스트 확인**
+
+Run:
+
+```bash
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/OnboardingFeatureTests
 ```
 
 Expected: `** TEST SUCCEEDED **`
@@ -569,271 +1451,278 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Services/ClassificationService.swift CaptureBoxTests/ClassificationServiceTests.swift
-git commit -m "feat: add rule based classification"
+git add CaptureBox/Features/Onboarding CaptureBoxTests/OnboardingFeatureTests.swift
+git commit -m "feat: add TCA onboarding permission flow"
 ```
 
 ---
 
-### Task 4: PhotoKit 후보 수집 서비스
+### Task 6: ScanFeature 구현
 
 **Files:**
-- Create: `CaptureBox/Services/PhotoLibraryService.swift`
-- Test: Build only, manual simulator permission check
+- Create: `CaptureBox/Features/Scan/ScanFeature.swift`
+- Create: `CaptureBox/Features/Scan/ScanView.swift`
+- Test: `CaptureBoxTests/ScanFeatureTests.swift`
 
-- [ ] **Step 1: PhotoKit 서비스 작성**
+- [ ] **Step 1: ScanFeature 테스트 작성**
 
-Create `CaptureBox/Services/PhotoLibraryService.swift`:
+Create `CaptureBoxTests/ScanFeatureTests.swift`:
 
 ```swift
-import Foundation
-import Photos
+import ComposableArchitecture
 import UIKit
-
-struct PhotoAssetCandidate: Identifiable, Equatable {
-    let id: String
-    let asset: PHAsset
-    let sourceKind: CaptureSourceKind
-
-    var creationDate: Date? { asset.creationDate }
-    var addedDate: Date? {
-        if #available(iOS 16.0, *) {
-            return asset.addedDate
-        }
-        return asset.creationDate
-    }
-}
-
-@MainActor
-final class PhotoLibraryService: ObservableObject {
-    @Published private(set) var authorizationStatus: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-
-    func refreshAuthorizationStatus() {
-        authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-    }
-
-    func requestAuthorization() async -> PHAuthorizationStatus {
-        let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        authorizationStatus = status
-        return status
-    }
-
-    func presentLimitedLibraryPicker() {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let controller = scene.windows.first?.rootViewController else {
-            return
-        }
-        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: controller)
-    }
-
-    nonisolated func fetchCandidates(range: ScanRange) -> [PhotoAssetCandidate] {
-        let options = PHFetchOptions()
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.predicate = predicate(for: range)
-
-        let screenshots = fetchScreenshots(options: options)
-        let savedCandidates = fetchSavedImageCandidates(options: options, excluding: Set(screenshots.map(\.id)))
-
-        return screenshots + savedCandidates
-    }
-
-    nonisolated func requestImage(for asset: PHAsset, targetSize: CGSize) async -> UIImage? {
-        await withCheckedContinuation { continuation in
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .highQualityFormat
-            options.resizeMode = .fast
-            options.isNetworkAccessAllowed = true
-
-            PHImageManager.default().requestImage(
-                for: asset,
-                targetSize: targetSize,
-                contentMode: .aspectFit,
-                options: options
-            ) { image, _ in
-                continuation.resume(returning: image)
-            }
-        }
-    }
-
-    private nonisolated func predicate(for range: ScanRange) -> NSPredicate {
-        let mediaPredicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
-        guard range == .recentYear,
-              let startDate = Calendar.current.date(byAdding: .year, value: -1, to: Date()) else {
-            return mediaPredicate
-        }
-        let datePredicate = NSPredicate(format: "creationDate >= %@", startDate as NSDate)
-        return NSCompoundPredicate(andPredicateWithSubpredicates: [mediaPredicate, datePredicate])
-    }
-
-    private nonisolated func fetchScreenshots(options: PHFetchOptions) -> [PhotoAssetCandidate] {
-        let result = PHAsset.fetchAssets(with: .image, options: options)
-        var candidates: [PhotoAssetCandidate] = []
-        result.enumerateObjects { asset, _, _ in
-            if asset.mediaSubtypes.contains(.photoScreenshot) {
-                candidates.append(PhotoAssetCandidate(id: asset.localIdentifier, asset: asset, sourceKind: .screenshot))
-            }
-        }
-        return candidates
-    }
-
-    private nonisolated func fetchSavedImageCandidates(options: PHFetchOptions, excluding ids: Set<String>) -> [PhotoAssetCandidate] {
-        let result = PHAsset.fetchAssets(with: .image, options: options)
-        var candidates: [PhotoAssetCandidate] = []
-        result.enumerateObjects { asset, _, _ in
-            guard !ids.contains(asset.localIdentifier) else { return }
-            guard asset.mediaSubtypes.isEmpty else { return }
-            guard asset.pixelWidth >= 600, asset.pixelHeight >= 600 else { return }
-            candidates.append(PhotoAssetCandidate(id: asset.localIdentifier, asset: asset, sourceKind: .savedImageCandidate))
-        }
-        return candidates
-    }
-}
-```
-
-- [ ] **Step 2: 빌드 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add CaptureBox/Services/PhotoLibraryService.swift
-git commit -m "feat: add photo library candidate fetching"
-```
-
----
-
-### Task 5: Vision OCR 및 코드 감지
-
-**Files:**
-- Create: `CaptureBox/Services/VisionAnalysisService.swift`
-- Test: Build only, manual fixture test with real images
-
-- [ ] **Step 1: Vision 서비스 작성**
-
-Create `CaptureBox/Services/VisionAnalysisService.swift`:
-
-```swift
-import Foundation
-import UIKit
-import Vision
-
-struct VisionAnalysisService {
-    func analyze(image: UIImage) async -> VisionAnalysisResult {
-        guard let cgImage = image.cgImage else {
-            return .empty
-        }
-
-        async let text = recognizeText(cgImage: cgImage)
-        async let codes = detectCodes(cgImage: cgImage)
-
-        let recognizedText = await text
-        let detectedCodes = await codes
-
-        return VisionAnalysisResult(
-            recognizedText: recognizedText,
-            detectedCodes: detectedCodes,
-            hasBarcodeOrQRCode: !detectedCodes.isEmpty
-        )
-    }
-
-    private func recognizeText(cgImage: CGImage) async -> String {
-        await withCheckedContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, _ in
-                let observations = request.results as? [VNRecognizedTextObservation] ?? []
-                let lines = observations.compactMap { observation in
-                    observation.topCandidates(1).first?.string
-                }
-                continuation.resume(returning: lines.joined(separator: "\n"))
-            }
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["ko-KR", "en-US"]
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(returning: "")
-            }
-        }
-    }
-
-    private func detectCodes(cgImage: CGImage) async -> [String] {
-        await withCheckedContinuation { continuation in
-            let request = VNDetectBarcodesRequest { request, _ in
-                let observations = request.results as? [VNBarcodeObservation] ?? []
-                let payloads = observations.compactMap(\.payloadStringValue)
-                continuation.resume(returning: payloads)
-            }
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(returning: [])
-            }
-        }
-    }
-}
-```
-
-- [ ] **Step 2: 빌드 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add CaptureBox/Services/VisionAnalysisService.swift
-git commit -m "feat: add on device vision analysis"
-```
-
----
-
-### Task 6: 로컬 저장소와 검색
-
-**Files:**
-- Create: `CaptureBox/Services/LocalStore.swift`
-- Test: `CaptureBoxTests/SearchIndexTests.swift`
-
-- [ ] **Step 1: 검색 테스트 작성**
-
-Create `CaptureBoxTests/SearchIndexTests.swift`:
-
-```swift
-import SwiftData
 import XCTest
 @testable import CaptureBox
 
 @MainActor
-final class SearchIndexTests: XCTestCase {
-    func testSearchMatchesRecognizedTextAndCategory() throws {
-        let container = try ModelContainer(
-            for: CapturedImageItem.self, ScanSession.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+final class ScanFeatureTests: XCTestCase {
+    func testRecentYearScanClassifiesAndSaves() async {
+        let candidate = PhotoAssetCandidate(
+            id: "asset-1",
+            sourceKind: .screenshot,
+            creationDate: Date(timeIntervalSince1970: 10),
+            addedDate: Date(timeIntervalSince1970: 10)
         )
-        let store = LocalStore(modelContext: container.mainContext)
+        var saved: [CapturedImage] = []
 
-        let item = CapturedImageItem(
+        let store = TestStore(initialState: ScanFeature.State()) {
+            ScanFeature()
+        } withDependencies: {
+            $0.photoLibraryClient.fetchCandidates = { _ in [candidate] }
+            $0.photoLibraryClient.requestImage = { _, _ in UIImage() }
+            $0.visionClient.analyze = { _ in
+                VisionAnalysisResult(
+                    recognizedText: "쿠폰 할인 유효기간",
+                    detectedCodes: ["QR"],
+                    hasBarcodeOrQRCode: true
+                )
+            }
+            $0.classificationClient.classify = { _, _ in
+                ClassificationResult(category: .coupon, confidence: 0.8, reason: "쿠폰", isSensitive: false)
+            }
+            $0.capturedImageRepository.upsert = { image in
+                saved.append(image)
+            }
+        }
+
+        await store.send(.startButtonTapped(.recentYear)) {
+            $0.progress.phase = .findingImages
+            $0.range = .recentYear
+        }
+        await store.receive(.candidatesResponse(.success([candidate]))) {
+            $0.progress.candidateCount = 1
+        }
+        await store.receive(.candidateAnalyzed(candidate, VisionAnalysisResult(recognizedText: "쿠폰 할인 유효기간", detectedCodes: ["QR"], hasBarcodeOrQRCode: true), ClassificationResult(category: .coupon, confidence: 0.8, reason: "쿠폰", isSensitive: false))) {
+            $0.progress.analyzedCount = 1
+            $0.progress.classifiedCount = 1
+        }
+        await store.receive(.scanCompleted) {
+            $0.progress.phase = .completed
+        }
+
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.category, .coupon)
+    }
+}
+```
+
+- [ ] **Step 2: ScanFeature 구현**
+
+Create `CaptureBox/Features/Scan/ScanFeature.swift`:
+
+```swift
+import ComposableArchitecture
+import Foundation
+import UIKit
+
+@Reducer
+struct ScanFeature {
+    @ObservableState
+    struct State: Equatable {
+        var range: ScanRange = .recentYear
+        var progress = ScanProgress()
+        var isSummaryVisible = false
+    }
+
+    enum Action: Equatable {
+        case startButtonTapped(ScanRange)
+        case cancelButtonTapped
+        case candidatesResponse(Result<[PhotoAssetCandidate], String>)
+        case candidateAnalyzed(PhotoAssetCandidate, VisionAnalysisResult, ClassificationResult)
+        case candidateSkipped(PhotoAssetCandidate)
+        case scanCompleted
+        case delegate(Delegate)
+
+        enum Delegate: Equatable {
+            case finished
+        }
+    }
+
+    @Dependency(\.photoLibraryClient) var photoLibraryClient
+    @Dependency(\.visionClient) var visionClient
+    @Dependency(\.classificationClient) var classificationClient
+    @Dependency(\.capturedImageRepository) var repository
+
+    enum CancelID { case scan }
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case let .startButtonTapped(range):
+                state.range = range
+                state.progress = ScanProgress(phase: .findingImages)
+                return .run { send in
+                    do {
+                        let candidates = try await photoLibraryClient.fetchCandidates(range)
+                        await send(.candidatesResponse(.success(candidates)))
+                        for candidate in candidates {
+                            try Task.checkCancellation()
+                            guard let image = await photoLibraryClient.requestImage(candidate.id, CGSize(width: 1600, height: 1600)) else {
+                                await send(.candidateSkipped(candidate))
+                                continue
+                            }
+                            let analysis = await visionClient.analyze(image)
+                            let classification = classificationClient.classify(analysis, candidate.sourceKind)
+                            let captured = CapturedImage(
+                                assetLocalIdentifier: candidate.id,
+                                sourceKind: candidate.sourceKind,
+                                creationDate: candidate.creationDate,
+                                addedDate: candidate.addedDate,
+                                recognizedText: analysis.recognizedText,
+                                detectedCodes: analysis.detectedCodes,
+                                category: classification.category,
+                                confidence: classification.confidence,
+                                reviewStatus: .new,
+                                isSensitive: classification.isSensitive,
+                                lastAnalyzedAt: Date()
+                            )
+                            try await repository.upsert(captured)
+                            await send(.candidateAnalyzed(candidate, analysis, classification))
+                        }
+                        await send(.scanCompleted)
+                    } catch is CancellationError {
+                        await send(.cancelButtonTapped)
+                    } catch {
+                        await send(.candidatesResponse(.failure("스캔에 실패했습니다.")))
+                    }
+                }
+                .cancellable(id: CancelID.scan, cancelInFlight: true)
+
+            case let .candidatesResponse(.success(candidates)):
+                state.progress.candidateCount = candidates.count
+                state.progress.phase = .analyzing
+                return .none
+
+            case let .candidatesResponse(.failure(message)):
+                state.progress.phase = .failed(message)
+                return .none
+
+            case let .candidateAnalyzed(_, _, classification):
+                state.progress.analyzedCount += 1
+                if classification.category == .unknown {
+                    state.progress.unknownCount += 1
+                } else {
+                    state.progress.classifiedCount += 1
+                }
+                return .none
+
+            case .candidateSkipped:
+                return .none
+
+            case .scanCompleted:
+                state.progress.phase = .completed
+                state.isSummaryVisible = true
+                return .send(.delegate(.finished))
+
+            case .cancelButtonTapped:
+                state.progress.phase = .cancelled
+                return .cancel(id: CancelID.scan)
+
+            case .delegate:
+                return .none
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 3: ScanView 작성**
+
+Create `CaptureBox/Features/Scan/ScanView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct ScanView: View {
+    let store: StoreOf<ScanFeature>
+
+    var body: some View {
+        VStack(spacing: 24) {
+            ProgressView()
+                .controlSize(.large)
+            Text(store.progress.phase.title)
+                .font(.title2.bold())
+            Text("\(store.progress.analyzedCount) / \(store.progress.candidateCount)개 분석")
+                .foregroundStyle(.secondary)
+            Button("최근 1년 스캔") {
+                store.send(.startButtonTapped(.recentYear))
+            }
+            .buttonStyle(.borderedProminent)
+            Button("취소") {
+                store.send(.cancelButtonTapped)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+    }
+}
+```
+
+- [ ] **Step 4: 테스트 확인**
+
+Run:
+
+```bash
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ScanFeatureTests
+```
+
+Expected: `** TEST SUCCEEDED **`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add CaptureBox/Features/Scan CaptureBoxTests/ScanFeatureTests.swift
+git commit -m "feat: add TCA scan feature"
+```
+
+---
+
+### Task 7: LibraryFeature와 보관함 화면
+
+**Files:**
+- Modify: `CaptureBox/Features/Library/LibraryFeature.swift`
+- Modify: `CaptureBox/Features/Library/LibraryView.swift`
+- Test: `CaptureBoxTests/LibraryFeatureTests.swift`
+
+- [ ] **Step 1: LibraryFeature 테스트 작성**
+
+Create `CaptureBoxTests/LibraryFeatureTests.swift`:
+
+```swift
+import ComposableArchitecture
+import XCTest
+@testable import CaptureBox
+
+@MainActor
+final class LibraryFeatureTests: XCTestCase {
+    func testLoadItemsBuildsCounts() async {
+        let image = CapturedImage(
             assetLocalIdentifier: "asset-1",
             sourceKind: .screenshot,
-            creationDate: Date(),
-            addedDate: Date(),
-            thumbnailCacheKey: "asset-1",
-            recognizedText: "쿠폰 할인 유효기간",
+            creationDate: nil,
+            addedDate: nil,
+            recognizedText: "쿠폰",
             detectedCodes: [],
             category: .coupon,
             confidence: 0.8,
@@ -842,820 +1731,113 @@ final class SearchIndexTests: XCTestCase {
             lastAnalyzedAt: Date()
         )
 
-        try store.upsert(item)
-
-        XCTAssertEqual(try store.search(query: "할인").count, 1)
-        XCTAssertEqual(try store.search(query: "쿠폰").count, 1)
-        XCTAssertEqual(try store.search(query: "배송").count, 0)
-    }
-}
-```
-
-- [ ] **Step 2: 실패 확인**
-
-Run:
-
-```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/SearchIndexTests
-```
-
-Expected: `Cannot find 'LocalStore' in scope`
-
-- [ ] **Step 3: LocalStore 작성**
-
-Create `CaptureBox/Services/LocalStore.swift`:
-
-```swift
-import Foundation
-import SwiftData
-
-@MainActor
-final class LocalStore {
-    private let modelContext: ModelContext
-
-    init(modelContext: ModelContext) {
-        self.modelContext = modelContext
-    }
-
-    func upsert(_ item: CapturedImageItem) throws {
-        let id = item.assetLocalIdentifier
-        let descriptor = FetchDescriptor<CapturedImageItem>(
-            predicate: #Predicate { $0.assetLocalIdentifier == id }
-        )
-
-        if let existing = try modelContext.fetch(descriptor).first {
-            existing.sourceKindRawValue = item.sourceKindRawValue
-            existing.creationDate = item.creationDate
-            existing.addedDate = item.addedDate
-            existing.thumbnailCacheKey = item.thumbnailCacheKey
-            existing.recognizedText = item.recognizedText
-            existing.detectedCodes = item.detectedCodes
-            if existing.reviewStatus != .changedByUser {
-                existing.categoryRawValue = item.categoryRawValue
-                existing.confidence = item.confidence
-                existing.isSensitive = item.isSensitive
-            }
-            existing.lastAnalyzedAt = item.lastAnalyzedAt
-        } else {
-            modelContext.insert(item)
+        let store = TestStore(initialState: LibraryFeature.State()) {
+            LibraryFeature()
+        } withDependencies: {
+            $0.capturedImageRepository.all = { [image] }
         }
 
-        try modelContext.save()
-    }
-
-    func allItems() throws -> [CapturedImageItem] {
-        let descriptor = FetchDescriptor<CapturedImageItem>(
-            sortBy: [SortDescriptor(\.creationDate, order: .reverse)]
-        )
-        return try modelContext.fetch(descriptor)
-    }
-
-    func items(in category: CaptureCategory) throws -> [CapturedImageItem] {
-        let rawValue = category.rawValue
-        let descriptor = FetchDescriptor<CapturedImageItem>(
-            predicate: #Predicate { $0.categoryRawValue == rawValue },
-            sortBy: [SortDescriptor(\.creationDate, order: .reverse)]
-        )
-        return try modelContext.fetch(descriptor)
-    }
-
-    func search(query: String) throws -> [CapturedImageItem] {
-        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else { return [] }
-        return try allItems().filter { item in
-            item.recognizedText.lowercased().contains(normalized)
-                || item.category.title.lowercased().contains(normalized)
-        }
-    }
-
-    func updateCategory(assetLocalIdentifier: String, category: CaptureCategory) throws {
-        let descriptor = FetchDescriptor<CapturedImageItem>(
-            predicate: #Predicate { $0.assetLocalIdentifier == assetLocalIdentifier }
-        )
-        guard let item = try modelContext.fetch(descriptor).first else { return }
-        item.updateCategory(category)
-        try modelContext.save()
-    }
-}
-```
-
-- [ ] **Step 4: 테스트 통과 확인**
-
-Run:
-
-```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/SearchIndexTests
-```
-
-Expected: `** TEST SUCCEEDED **`
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add CaptureBox/Services/LocalStore.swift CaptureBoxTests/SearchIndexTests.swift
-git commit -m "feat: add local store and search"
-```
-
----
-
-### Task 7: 스캔 코디네이터
-
-**Files:**
-- Create: `CaptureBox/Services/ScanCoordinator.swift`
-- Test: `CaptureBoxTests/ScanCoordinatorTests.swift`
-
-- [ ] **Step 1: 스캔 상태 타입 작성**
-
-Create `CaptureBox/Services/ScanCoordinator.swift`:
-
-```swift
-import Foundation
-import UIKit
-
-enum ScanPhase: Equatable {
-    case idle
-    case findingImages
-    case readingText
-    case classifying
-    case saving
-    case completed
-    case cancelled
-    case failed(String)
-
-    var title: String {
-        switch self {
-        case .idle: "대기 중"
-        case .findingImages: "이미지 찾는 중"
-        case .readingText: "텍스트 읽는 중"
-        case .classifying: "분류 중"
-        case .saving: "저장 중"
-        case .completed: "완료"
-        case .cancelled: "취소됨"
-        case .failed: "실패"
+        await store.send(.task)
+        await store.receive(.itemsResponse(.success([image]))) {
+            $0.items = [image]
+            $0.categoryCounts[.coupon] = 1
         }
     }
 }
-
-struct ScanProgressState: Equatable {
-    var phase: ScanPhase
-    var candidateCount: Int
-    var analyzedCount: Int
-    var classifiedCount: Int
-    var unknownCount: Int
-}
-
-@MainActor
-final class ScanCoordinator: ObservableObject {
-    @Published private(set) var progress = ScanProgressState(
-        phase: .idle,
-        candidateCount: 0,
-        analyzedCount: 0,
-        classifiedCount: 0,
-        unknownCount: 0
-    )
-
-    private let photoLibraryService: PhotoLibraryService
-    private let visionAnalysisService: VisionAnalysisService
-    private let classificationService: ClassificationService
-    private let localStore: LocalStore
-    private var isCancelled = false
-
-    init(
-        photoLibraryService: PhotoLibraryService,
-        visionAnalysisService: VisionAnalysisService,
-        classificationService: ClassificationService,
-        localStore: LocalStore
-    ) {
-        self.photoLibraryService = photoLibraryService
-        self.visionAnalysisService = visionAnalysisService
-        self.classificationService = classificationService
-        self.localStore = localStore
-    }
-
-    func cancel() {
-        isCancelled = true
-        progress.phase = .cancelled
-    }
-
-    func start(range: ScanRange) async {
-        isCancelled = false
-        progress = ScanProgressState(phase: .findingImages, candidateCount: 0, analyzedCount: 0, classifiedCount: 0, unknownCount: 0)
-
-        let candidates = photoLibraryService.fetchCandidates(range: range)
-        progress.candidateCount = candidates.count
-
-        for candidate in candidates {
-            if isCancelled { break }
-            progress.phase = .readingText
-
-            guard let image = await photoLibraryService.requestImage(
-                for: candidate.asset,
-                targetSize: CGSize(width: 1600, height: 1600)
-            ) else {
-                continue
-            }
-
-            let analysis = await visionAnalysisService.analyze(image: image)
-            progress.phase = .classifying
-            let classification = classificationService.classify(analysis: analysis, sourceKind: candidate.sourceKind)
-
-            let item = CapturedImageItem(
-                assetLocalIdentifier: candidate.id,
-                sourceKind: candidate.sourceKind,
-                creationDate: candidate.creationDate,
-                addedDate: candidate.addedDate,
-                thumbnailCacheKey: candidate.id,
-                recognizedText: analysis.recognizedText,
-                detectedCodes: analysis.detectedCodes,
-                category: classification.category,
-                confidence: classification.confidence,
-                reviewStatus: .new,
-                isSensitive: classification.isSensitive,
-                lastAnalyzedAt: Date()
-            )
-
-            progress.phase = .saving
-            do {
-                try localStore.upsert(item)
-                progress.analyzedCount += 1
-                if classification.category == .unknown {
-                    progress.unknownCount += 1
-                } else {
-                    progress.classifiedCount += 1
-                }
-            } catch {
-                progress.phase = .failed("분석 결과 저장에 실패했습니다.")
-                return
-            }
-        }
-
-        progress.phase = isCancelled ? .cancelled : .completed
-    }
-}
 ```
 
-- [ ] **Step 2: 빌드 확인**
+- [ ] **Step 2: LibraryFeature 구현**
 
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add CaptureBox/Services/ScanCoordinator.swift
-git commit -m "feat: add scan coordinator"
-```
-
----
-
-### Task 8: 온보딩과 권한 UI
-
-**Files:**
-- Create: `CaptureBox/App/AppState.swift`
-- Create: `CaptureBox/ViewModels/OnboardingViewModel.swift`
-- Modify: `CaptureBox/Views/RootView.swift`
-- Create: `CaptureBox/Views/OnboardingView.swift`
-
-- [ ] **Step 1: AppState 작성**
-
-Create `CaptureBox/App/AppState.swift`:
+Replace `CaptureBox/Features/Library/LibraryFeature.swift`:
 
 ```swift
-import Foundation
-import SwiftUI
+import ComposableArchitecture
 
-@Observable
-final class AppState {
-    var hasCompletedOnboarding: Bool {
-        didSet {
-            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
-        }
+@Reducer
+struct LibraryFeature {
+    @ObservableState
+    struct State: Equatable {
+        var items: [CapturedImage] = []
+        var categoryCounts: [CaptureCategory: Int] = [:]
+        var scan: ScanFeature.State?
     }
 
-    init() {
-        hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-    }
-}
-```
-
-- [ ] **Step 2: OnboardingViewModel 작성**
-
-Create `CaptureBox/ViewModels/OnboardingViewModel.swift`:
-
-```swift
-import Foundation
-import Photos
-
-@MainActor
-@Observable
-final class OnboardingViewModel {
-    private let photoLibraryService: PhotoLibraryService
-    var authorizationStatus: PHAuthorizationStatus
-
-    init(photoLibraryService: PhotoLibraryService) {
-        self.photoLibraryService = photoLibraryService
-        authorizationStatus = photoLibraryService.authorizationStatus
+    enum Action: Equatable {
+        case task
+        case itemsResponse(Result<[CapturedImage], String>)
+        case scanButtonTapped
+        case scan(PresentationAction<ScanFeature.Action>)
     }
 
-    func requestAccess() async {
-        authorizationStatus = await photoLibraryService.requestAuthorization()
-    }
+    @Dependency(\.capturedImageRepository) var repository
 
-    var canContinue: Bool {
-        authorizationStatus == .authorized || authorizationStatus == .limited
-    }
-}
-```
-
-- [ ] **Step 3: OnboardingView 작성**
-
-Create `CaptureBox/Views/OnboardingView.swift`:
-
-```swift
-import Photos
-import SwiftUI
-
-struct OnboardingView: View {
-    @Bindable var appState: AppState
-    @State var viewModel: OnboardingViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Spacer()
-
-            Text("스크린샷과 저장 이미지를\n기기 안에서 정리합니다")
-                .font(.largeTitle.bold())
-
-            Text("쿠폰, 영수증, 배송, 예약, 주소, 결제 메모를 자동으로 찾아 앱 내부 보관함에 정리합니다. 사진은 서버로 업로드하지 않습니다.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Label("선택한 사진만 허용해도 사용할 수 있어요", systemImage: "checkmark.circle")
-                Label("전체 접근을 허용하면 자동 분류가 더 잘 됩니다", systemImage: "sparkles")
-                Label("MVP에서는 Photos 원본을 삭제하거나 이동하지 않습니다", systemImage: "lock.shield")
-            }
-            .font(.callout)
-
-            Spacer()
-
-            Button {
-                Task {
-                    await viewModel.requestAccess()
-                    if viewModel.canContinue {
-                        appState.hasCompletedOnboarding = true
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .task:
+                return .run { send in
+                    do {
+                        await send(.itemsResponse(.success(try await repository.all())))
+                    } catch {
+                        await send(.itemsResponse(.failure("보관함을 불러오지 못했습니다.")))
                     }
                 }
-            } label: {
-                Text(buttonTitle)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-        }
-        .padding(24)
-    }
 
-    private var buttonTitle: String {
-        switch viewModel.authorizationStatus {
-        case .authorized, .limited: "보관함 시작하기"
-        case .denied, .restricted: "사진 권한이 필요합니다"
-        case .notDetermined: "사진 접근 허용하기"
-        @unknown default: "사진 접근 허용하기"
+            case let .itemsResponse(.success(items)):
+                state.items = items
+                state.categoryCounts = Dictionary(grouping: items, by: \.category).mapValues(\.count)
+                return .none
+
+            case .itemsResponse(.failure):
+                return .none
+
+            case .scanButtonTapped:
+                state.scan = ScanFeature.State()
+                return .none
+
+            case .scan(.presented(.delegate(.finished))):
+                state.scan = nil
+                return .send(.task)
+
+            case .scan:
+                return .none
+            }
+        }
+        .ifLet(\.$scan, action: \.scan) {
+            ScanFeature()
         }
     }
 }
 ```
 
-- [ ] **Step 4: RootView를 온보딩 라우터로 수정**
+- [ ] **Step 3: LibraryView 구현**
 
-Replace `CaptureBox/Views/RootView.swift`:
-
-```swift
-import SwiftData
-import SwiftUI
-
-struct RootView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var appState = AppState()
-    @StateObject private var photoLibraryService = PhotoLibraryService()
-
-    var body: some View {
-        Group {
-            if appState.hasCompletedOnboarding {
-                LibraryView()
-            } else {
-                OnboardingView(
-                    appState: appState,
-                    viewModel: OnboardingViewModel(photoLibraryService: photoLibraryService)
-                )
-            }
-        }
-    }
-}
-```
-
-- [ ] **Step 5: 빌드 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `LibraryView`가 아직 생성되지 않아 실패한다.
-
-- [ ] **Step 6: 임시 LibraryView 작성**
-
-Create `CaptureBox/Views/LibraryView.swift`:
+Replace `CaptureBox/Features/Library/LibraryView.swift`:
 
 ```swift
+import ComposableArchitecture
 import SwiftUI
 
 struct LibraryView: View {
-    var body: some View {
-        NavigationStack {
-            Text("보관함")
-                .navigationTitle("보관함")
-        }
-    }
-}
-```
-
-- [ ] **Step 7: 빌드 통과 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add CaptureBox/App CaptureBox/ViewModels/OnboardingViewModel.swift CaptureBox/Views/RootView.swift CaptureBox/Views/OnboardingView.swift CaptureBox/Views/LibraryView.swift
-git commit -m "feat: add onboarding and photo permission flow"
-```
-
----
-
-### Task 9: 스캔 진행과 요약 UI
-
-**Files:**
-- Create: `CaptureBox/ViewModels/ScanViewModel.swift`
-- Create: `CaptureBox/Views/ScanProgressView.swift`
-- Create: `CaptureBox/Views/ScanSummaryView.swift`
-- Modify: `CaptureBox/Views/LibraryView.swift`
-
-- [ ] **Step 1: ScanViewModel 작성**
-
-Create `CaptureBox/ViewModels/ScanViewModel.swift`:
-
-```swift
-import Foundation
-
-@MainActor
-@Observable
-final class ScanViewModel {
-    private let coordinator: ScanCoordinator
-    var progress: ScanProgressState { coordinator.progress }
-    var didFinish = false
-
-    init(coordinator: ScanCoordinator) {
-        self.coordinator = coordinator
-    }
-
-    func startRecentYearScan() {
-        Task {
-            await coordinator.start(range: .recentYear)
-            didFinish = coordinator.progress.phase == .completed
-        }
-    }
-
-    func startAllTimeScan() {
-        Task {
-            await coordinator.start(range: .allTime)
-            didFinish = coordinator.progress.phase == .completed
-        }
-    }
-
-    func cancel() {
-        coordinator.cancel()
-    }
-}
-```
-
-- [ ] **Step 2: ScanProgressView 작성**
-
-Create `CaptureBox/Views/ScanProgressView.swift`:
-
-```swift
-import SwiftUI
-
-struct ScanProgressView: View {
-    @State var viewModel: ScanViewModel
-
-    var body: some View {
-        VStack(spacing: 24) {
-            ProgressView()
-                .controlSize(.large)
-
-            Text(viewModel.progress.phase.title)
-                .font(.title2.bold())
-
-            Text("\(viewModel.progress.analyzedCount) / \(viewModel.progress.candidateCount)개 분석")
-                .foregroundStyle(.secondary)
-
-            Button("취소") {
-                viewModel.cancel()
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding()
-        .task {
-            viewModel.startRecentYearScan()
-        }
-    }
-}
-```
-
-- [ ] **Step 3: ScanSummaryView 작성**
-
-Create `CaptureBox/Views/ScanSummaryView.swift`:
-
-```swift
-import SwiftUI
-
-struct ScanSummaryView: View {
-    let progress: ScanProgressState
-    let onOpenLibrary: () -> Void
-    let onScanAllTime: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("정리 준비 완료")
-                .font(.largeTitle.bold())
-
-            Text("최근 1년에서 \(progress.candidateCount)개 후보를 찾고 \(progress.classifiedCount)개를 분류했어요.")
-                .foregroundStyle(.secondary)
-
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
-                GridRow {
-                    Text("분류됨")
-                    Text("\(progress.classifiedCount)")
-                }
-                GridRow {
-                    Text("미분류")
-                    Text("\(progress.unknownCount)")
-                }
-                GridRow {
-                    Text("분석됨")
-                    Text("\(progress.analyzedCount)")
-                }
-            }
-
-            Spacer()
-
-            Button("보관함으로 이동", action: onOpenLibrary)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-            Button("전체 기간 스캔", action: onScanAllTime)
-                .buttonStyle(.bordered)
-        }
-        .padding(24)
-    }
-}
-```
-
-- [ ] **Step 4: LibraryView에 첫 스캔 버튼 연결**
-
-Replace `CaptureBox/Views/LibraryView.swift`:
-
-```swift
-import SwiftData
-import SwiftUI
-
-struct LibraryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var isShowingScan = false
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                Text("아직 분석 결과가 없습니다")
-                    .font(.title3.bold())
-                Text("최근 1년의 스크린샷과 저장 이미지를 기기 안에서 분석해 보관함을 만듭니다.")
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Button("첫 스캔 시작") {
-                    isShowingScan = true
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .padding()
-            .navigationTitle("보관함")
-            .sheet(isPresented: $isShowingScan) {
-                let photoService = PhotoLibraryService()
-                let store = LocalStore(modelContext: modelContext)
-                let coordinator = ScanCoordinator(
-                    photoLibraryService: photoService,
-                    visionAnalysisService: VisionAnalysisService(),
-                    classificationService: ClassificationService(),
-                    localStore: store
-                )
-                ScanProgressView(viewModel: ScanViewModel(coordinator: coordinator))
-            }
-        }
-    }
-}
-```
-
-- [ ] **Step 5: 빌드 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add CaptureBox/ViewModels/ScanViewModel.swift CaptureBox/Views/ScanProgressView.swift CaptureBox/Views/ScanSummaryView.swift CaptureBox/Views/LibraryView.swift
-git commit -m "feat: add scan progress and summary UI"
-```
-
----
-
-### Task 10: 보관함, 카테고리 상세, 이미지 상세
-
-**Files:**
-- Create: `CaptureBox/ViewModels/LibraryViewModel.swift`
-- Modify: `CaptureBox/Views/LibraryView.swift`
-- Create: `CaptureBox/Views/CategoryDetailView.swift`
-- Create: `CaptureBox/Views/ImageDetailView.swift`
-
-- [ ] **Step 1: LibraryViewModel 작성**
-
-Create `CaptureBox/ViewModels/LibraryViewModel.swift`:
-
-```swift
-import Foundation
-
-@MainActor
-@Observable
-final class LibraryViewModel {
-    private let store: LocalStore
-    var items: [CapturedImageItem] = []
-
-    init(store: LocalStore) {
-        self.store = store
-    }
-
-    func load() {
-        items = (try? store.allItems()) ?? []
-    }
-
-    func count(for category: CaptureCategory) -> Int {
-        items.filter { $0.category == category }.count
-    }
-
-    func items(for category: CaptureCategory) -> [CapturedImageItem] {
-        items.filter { $0.category == category }
-    }
-}
-```
-
-- [ ] **Step 2: CategoryDetailView 작성**
-
-Create `CaptureBox/Views/CategoryDetailView.swift`:
-
-```swift
-import SwiftUI
-
-struct CategoryDetailView: View {
-    let category: CaptureCategory
-    let items: [CapturedImageItem]
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 110), spacing: 12)
-    ]
-
-    var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(items, id: \.assetLocalIdentifier) { item in
-                    NavigationLink {
-                        ImageDetailView(item: item)
-                    } label: {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(.quaternary)
-                            .aspectRatio(1, contentMode: .fit)
-                            .overlay {
-                                VStack {
-                                    Image(systemName: "photo")
-                                    Text(item.category.title)
-                                        .font(.caption)
-                                }
-                                .foregroundStyle(.secondary)
-                            }
-                    }
-                }
-            }
-            .padding()
-        }
-        .navigationTitle(category.title)
-    }
-}
-```
-
-- [ ] **Step 3: ImageDetailView 작성**
-
-Create `CaptureBox/Views/ImageDetailView.swift`:
-
-```swift
-import SwiftUI
-
-struct ImageDetailView: View {
-    @Bindable var item: CapturedImageItem
-
-    var body: some View {
-        Form {
-            Section("분류") {
-                Picker("카테고리", selection: Binding(
-                    get: { item.category },
-                    set: { item.updateCategory($0) }
-                )) {
-                    ForEach(CaptureCategory.allCases) { category in
-                        Text(category.title).tag(category)
-                    }
-                }
-            }
-
-            Section("분석 정보") {
-                LabeledContent("신뢰도", value: "\(Int(item.confidence * 100))%")
-                LabeledContent("민감 정보", value: item.isSensitive ? "예" : "아니오")
-                LabeledContent("코드 감지", value: item.detectedCodes.isEmpty ? "없음" : "\(item.detectedCodes.count)개")
-            }
-
-            Section("OCR 텍스트") {
-                Text(item.recognizedText.isEmpty ? "인식된 텍스트가 없습니다." : item.recognizedText)
-                    .textSelection(.enabled)
-            }
-        }
-        .navigationTitle(item.category.title)
-    }
-}
-```
-
-- [ ] **Step 4: LibraryView를 카테고리 카드 목록으로 수정**
-
-Replace `CaptureBox/Views/LibraryView.swift`:
-
-```swift
-import SwiftData
-import SwiftUI
-
-struct LibraryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var isShowingScan = false
-    @State private var viewModel: LibraryViewModel?
+    @Bindable var store: StoreOf<LibraryFeature>
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(CaptureCategory.allCases) { category in
-                    let count = viewModel?.count(for: category) ?? 0
-                    NavigationLink {
-                        CategoryDetailView(
-                            category: category,
-                            items: viewModel?.items(for: category) ?? []
-                        )
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(category.title)
-                                    .font(.headline)
-                                if category.isSensitive {
-                                    Text("민감 정보")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(category.title)
+                                .font(.headline)
+                            if category.isSensitive {
+                                Text("민감 정보")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Text("\(count)")
-                                .foregroundStyle(.secondary)
                         }
+                        Spacer()
+                        Text("\(store.categoryCounts[category, default: 0])")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -1663,336 +1845,310 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink("검색") {
-                        SearchView()
+                        SearchView(store: Store(initialState: SearchFeature.State()) {
+                            SearchFeature()
+                        })
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("스캔") {
-                        isShowingScan = true
+                        store.send(.scanButtonTapped)
                     }
                 }
             }
-            .onAppear {
-                let model = LibraryViewModel(store: LocalStore(modelContext: modelContext))
-                model.load()
-                viewModel = model
+            .task {
+                await store.send(.task).finish()
             }
-            .sheet(isPresented: $isShowingScan, onDismiss: {
-                viewModel?.load()
-            }) {
-                let photoService = PhotoLibraryService()
-                let store = LocalStore(modelContext: modelContext)
-                let coordinator = ScanCoordinator(
-                    photoLibraryService: photoService,
-                    visionAnalysisService: VisionAnalysisService(),
-                    classificationService: ClassificationService(),
-                    localStore: store
-                )
-                ScanProgressView(viewModel: ScanViewModel(coordinator: coordinator))
+            .sheet(item: $store.scope(state: \.scan, action: \.scan)) { scanStore in
+                ScanView(store: scanStore)
             }
         }
     }
 }
 ```
 
-- [ ] **Step 5: 임시 SearchView 작성**
-
-Create `CaptureBox/Views/SearchView.swift`:
-
-```swift
-import SwiftUI
-
-struct SearchView: View {
-    var body: some View {
-        Text("검색")
-            .navigationTitle("검색")
-    }
-}
-```
-
-- [ ] **Step 6: 빌드 확인**
+- [ ] **Step 4: 테스트와 빌드 확인**
 
 Run:
 
 ```bash
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/LibraryFeatureTests
 xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
-Expected: `** BUILD SUCCEEDED **`
+Expected: both commands succeed after Task 8 creates `SearchFeature`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit은 Task 8 후 함께 진행**
 
-```bash
-git add CaptureBox/ViewModels/LibraryViewModel.swift CaptureBox/Views/LibraryView.swift CaptureBox/Views/CategoryDetailView.swift CaptureBox/Views/ImageDetailView.swift CaptureBox/Views/SearchView.swift
-git commit -m "feat: add library and detail views"
-```
+Task 8에서 `SearchFeature`를 추가한 뒤 Library와 Search를 함께 커밋한다.
 
 ---
 
-### Task 11: OCR 검색 화면
+### Task 8: SearchFeature와 OCR 검색
 
 **Files:**
-- Create: `CaptureBox/ViewModels/SearchViewModel.swift`
-- Modify: `CaptureBox/Views/SearchView.swift`
+- Create: `CaptureBox/Features/Search/SearchFeature.swift`
+- Create: `CaptureBox/Features/Search/SearchView.swift`
+- Test: `CaptureBoxTests/SearchFeatureTests.swift`
 
-- [ ] **Step 1: SearchViewModel 작성**
+- [ ] **Step 1: SearchFeature 테스트 작성**
 
-Create `CaptureBox/ViewModels/SearchViewModel.swift`:
+Create `CaptureBoxTests/SearchFeatureTests.swift`:
 
 ```swift
-import Foundation
+import ComposableArchitecture
+import XCTest
+@testable import CaptureBox
 
 @MainActor
-@Observable
-final class SearchViewModel {
-    private let store: LocalStore
-    var query = ""
-    var results: [CapturedImageItem] = []
+final class SearchFeatureTests: XCTestCase {
+    func testSearchReturnsResults() async {
+        let image = CapturedImage(
+            assetLocalIdentifier: "asset-1",
+            sourceKind: .screenshot,
+            creationDate: nil,
+            addedDate: nil,
+            recognizedText: "배송 운송장",
+            detectedCodes: [],
+            category: .delivery,
+            confidence: 0.8,
+            reviewStatus: .new,
+            isSensitive: false,
+            lastAnalyzedAt: Date()
+        )
 
-    init(store: LocalStore) {
-        self.store = store
-    }
+        let store = TestStore(initialState: SearchFeature.State()) {
+            SearchFeature()
+        } withDependencies: {
+            $0.capturedImageRepository.search = { query in
+                query == "배송" ? [image] : []
+            }
+        }
 
-    func search() {
-        results = (try? store.search(query: query)) ?? []
+        await store.send(.queryChanged("배송")) {
+            $0.query = "배송"
+        }
+        await store.receive(.searchResponse(.success([image]))) {
+            $0.results = [image]
+        }
     }
 }
 ```
 
-- [ ] **Step 2: SearchView 작성**
+- [ ] **Step 2: SearchFeature 구현**
 
-Replace `CaptureBox/Views/SearchView.swift`:
+Create `CaptureBox/Features/Search/SearchFeature.swift`:
 
 ```swift
-import SwiftData
+import ComposableArchitecture
+
+@Reducer
+struct SearchFeature {
+    @ObservableState
+    struct State: Equatable {
+        var query = ""
+        var results: [CapturedImage] = []
+    }
+
+    enum Action: Equatable {
+        case queryChanged(String)
+        case searchResponse(Result<[CapturedImage], String>)
+    }
+
+    @Dependency(\.capturedImageRepository) var repository
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case let .queryChanged(query):
+                state.query = query
+                return .run { send in
+                    do {
+                        await send(.searchResponse(.success(try await repository.search(query))))
+                    } catch {
+                        await send(.searchResponse(.failure("검색에 실패했습니다.")))
+                    }
+                }
+
+            case let .searchResponse(.success(results)):
+                state.results = results
+                return .none
+
+            case .searchResponse(.failure):
+                state.results = []
+                return .none
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 3: SearchView 구현**
+
+Create `CaptureBox/Features/Search/SearchView.swift`:
+
+```swift
+import ComposableArchitecture
 import SwiftUI
 
 struct SearchView: View {
-    @Environment(\.modelContext) private var modelContext
-    @State private var viewModel: SearchViewModel?
+    @Bindable var store: StoreOf<SearchFeature>
 
     var body: some View {
         List {
-            if let viewModel {
-                ForEach(viewModel.results, id: \.assetLocalIdentifier) { item in
-                    NavigationLink {
-                        ImageDetailView(item: item)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.category.title)
-                                .font(.headline)
-                            Text(item.recognizedText)
-                                .lineLimit(2)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+            ForEach(store.results) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.category.title)
+                        .font(.headline)
+                    Text(item.recognizedText)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .navigationTitle("검색")
-        .searchable(text: Binding(
-            get: { viewModel?.query ?? "" },
-            set: {
-                viewModel?.query = $0
-                viewModel?.search()
+        .searchable(text: $store.query.sending(\.queryChanged), prompt: "쿠폰, 배송, 운송장, 주소")
+    }
+}
+```
+
+- [ ] **Step 4: 테스트와 빌드 확인**
+
+Run:
+
+```bash
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/SearchFeatureTests
+xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/LibraryFeatureTests
+xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
+
+Expected: all commands succeed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add CaptureBox/Features/Library CaptureBox/Features/Search CaptureBoxTests/LibraryFeatureTests.swift CaptureBoxTests/SearchFeatureTests.swift
+git commit -m "feat: add TCA library and search features"
+```
+
+---
+
+### Task 9: ImageDetailFeature와 카테고리 수정
+
+**Files:**
+- Create: `CaptureBox/Features/ImageDetail/ImageDetailFeature.swift`
+- Create: `CaptureBox/Features/ImageDetail/ImageDetailView.swift`
+- Modify: `CaptureBox/Features/Search/SearchView.swift`
+- Test: build
+
+- [ ] **Step 1: ImageDetailFeature 작성**
+
+Create `CaptureBox/Features/ImageDetail/ImageDetailFeature.swift`:
+
+```swift
+import ComposableArchitecture
+
+@Reducer
+struct ImageDetailFeature {
+    @ObservableState
+    struct State: Equatable, Identifiable {
+        var id: String { item.id }
+        var item: CapturedImage
+    }
+
+    enum Action: Equatable {
+        case categoryChanged(CaptureCategory)
+        case categorySaved(Result<CaptureCategory, String>)
+    }
+
+    @Dependency(\.capturedImageRepository) var repository
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case let .categoryChanged(category):
+                state.item.category = category
+                state.item.reviewStatus = .changedByUser
+                state.item.isSensitive = category.isSensitive
+                let id = state.item.assetLocalIdentifier
+                return .run { send in
+                    do {
+                        try await repository.updateCategory(id, category)
+                        await send(.categorySaved(.success(category)))
+                    } catch {
+                        await send(.categorySaved(.failure("카테고리를 저장하지 못했습니다.")))
+                    }
+                }
+
+            case .categorySaved:
+                return .none
             }
-        ), prompt: "쿠폰, 배송, 운송장, 주소")
-        .onAppear {
-            viewModel = SearchViewModel(store: LocalStore(modelContext: modelContext))
         }
     }
 }
 ```
 
-- [ ] **Step 3: 빌드 확인**
+- [ ] **Step 2: ImageDetailView 작성**
 
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add CaptureBox/ViewModels/SearchViewModel.swift CaptureBox/Views/SearchView.swift
-git commit -m "feat: add OCR text search UI"
-```
-
----
-
-### Task 12: 설정 화면과 권한 관리
-
-**Files:**
-- Create: `CaptureBox/Views/SettingsView.swift`
-- Modify: `CaptureBox/Views/LibraryView.swift`
-
-- [ ] **Step 1: SettingsView 작성**
-
-Create `CaptureBox/Views/SettingsView.swift`:
+Create `CaptureBox/Features/ImageDetail/ImageDetailView.swift`:
 
 ```swift
-import Photos
+import ComposableArchitecture
 import SwiftUI
 
-struct SettingsView: View {
-    @StateObject private var photoLibraryService = PhotoLibraryService()
+struct ImageDetailView: View {
+    @Bindable var store: StoreOf<ImageDetailFeature>
 
     var body: some View {
         Form {
-            Section("사진 권한") {
-                LabeledContent("현재 상태", value: statusTitle)
-                if photoLibraryService.authorizationStatus == .limited {
-                    Button("선택한 사진 관리") {
-                        photoLibraryService.presentLimitedLibraryPicker()
+            Section("분류") {
+                Picker(
+                    "카테고리",
+                    selection: $store.item.category.sending(\.categoryChanged)
+                ) {
+                    ForEach(CaptureCategory.allCases) { category in
+                        Text(category.title).tag(category)
                     }
                 }
             }
 
-            Section("개인정보") {
-                Text("CaptureBox는 MVP에서 스크린샷과 저장 이미지를 서버로 업로드하지 않습니다. 분석은 기기 안에서만 진행되며 Photos 원본을 삭제하거나 이동하지 않습니다.")
+            Section("분석 정보") {
+                LabeledContent("신뢰도", value: "\(Int(store.item.confidence * 100))%")
+                LabeledContent("민감 정보", value: store.item.isSensitive ? "예" : "아니오")
+                LabeledContent("코드 감지", value: store.item.detectedCodes.isEmpty ? "없음" : "\(store.item.detectedCodes.count)개")
+            }
+
+            Section("OCR 텍스트") {
+                Text(store.item.recognizedText.isEmpty ? "인식된 텍스트가 없습니다." : store.item.recognizedText)
+                    .textSelection(.enabled)
             }
         }
-        .navigationTitle("설정")
-        .onAppear {
-            photoLibraryService.refreshAuthorizationStatus()
-        }
-    }
-
-    private var statusTitle: String {
-        switch photoLibraryService.authorizationStatus {
-        case .authorized: "전체 접근"
-        case .limited: "선택한 사진만"
-        case .denied: "거부됨"
-        case .restricted: "제한됨"
-        case .notDetermined: "아직 요청하지 않음"
-        @unknown default: "알 수 없음"
-        }
+        .navigationTitle(store.item.category.title)
     }
 }
 ```
 
-- [ ] **Step 2: LibraryView에 설정 링크 추가**
+- [ ] **Step 3: SearchView에서 상세 진입 추가**
 
-Modify toolbar in `CaptureBox/Views/LibraryView.swift`:
-
-```swift
-.toolbar {
-    ToolbarItem(placement: .topBarLeading) {
-        NavigationLink("검색") {
-            SearchView()
-        }
-    }
-    ToolbarItem(placement: .topBarTrailing) {
-        Menu {
-            Button("스캔") {
-                isShowingScan = true
-            }
-            NavigationLink("설정") {
-                SettingsView()
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle")
-        }
-    }
-}
-```
-
-- [ ] **Step 3: 빌드 확인**
-
-Run:
-
-```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Expected: `** BUILD SUCCEEDED **`
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add CaptureBox/Views/SettingsView.swift CaptureBox/Views/LibraryView.swift
-git commit -m "feat: add settings and permission management"
-```
-
----
-
-### Task 13: 실제 썸네일 표시
-
-**Files:**
-- Create: `CaptureBox/ViewModels/ThumbnailViewModel.swift`
-- Create: `CaptureBox/Views/AssetThumbnailView.swift`
-- Modify: `CaptureBox/Views/CategoryDetailView.swift`
-
-- [ ] **Step 1: 썸네일 ViewModel 작성**
-
-Create `CaptureBox/ViewModels/ThumbnailViewModel.swift`:
-
-```swift
-import Photos
-import SwiftUI
-
-@MainActor
-@Observable
-final class ThumbnailViewModel {
-    var image: UIImage?
-
-    func load(assetLocalIdentifier: String) async {
-        let result = PHAsset.fetchAssets(withLocalIdentifiers: [assetLocalIdentifier], options: nil)
-        guard let asset = result.firstObject else { return }
-        let service = PhotoLibraryService()
-        image = await service.requestImage(for: asset, targetSize: CGSize(width: 300, height: 300))
-    }
-}
-```
-
-- [ ] **Step 2: AssetThumbnailView 작성**
-
-Create `CaptureBox/Views/AssetThumbnailView.swift`:
-
-```swift
-import SwiftUI
-
-struct AssetThumbnailView: View {
-    let assetLocalIdentifier: String
-    @State private var viewModel = ThumbnailViewModel()
-
-    var body: some View {
-        ZStack {
-            if let image = viewModel.image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Rectangle()
-                    .fill(.quaternary)
-                    .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .task {
-            await viewModel.load(assetLocalIdentifier: assetLocalIdentifier)
-        }
-    }
-}
-```
-
-- [ ] **Step 3: CategoryDetailView에서 실제 썸네일 사용**
-
-Replace grid cell in `CaptureBox/Views/CategoryDetailView.swift`:
+Replace row in `CaptureBox/Features/Search/SearchView.swift`:
 
 ```swift
 NavigationLink {
-    ImageDetailView(item: item)
+    ImageDetailView(
+        store: Store(initialState: ImageDetailFeature.State(item: item)) {
+            ImageDetailFeature()
+        }
+    )
 } label: {
-    AssetThumbnailView(assetLocalIdentifier: item.assetLocalIdentifier)
-        .aspectRatio(1, contentMode: .fit)
+    VStack(alignment: .leading, spacing: 4) {
+        Text(item.category.title)
+            .font(.headline)
+        Text(item.recognizedText)
+            .font(.caption)
+            .lineLimit(2)
+            .foregroundStyle(.secondary)
+    }
 }
 ```
 
@@ -2009,16 +2165,228 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/ViewModels/ThumbnailViewModel.swift CaptureBox/Views/AssetThumbnailView.swift CaptureBox/Views/CategoryDetailView.swift
-git commit -m "feat: show photo thumbnails"
+git add CaptureBox/Features/ImageDetail CaptureBox/Features/Search/SearchView.swift
+git commit -m "feat: add TCA image detail editing"
 ```
 
 ---
 
-### Task 14: 수동 QA와 MVP 마감 점검
+### Task 10: SettingsFeature와 권한 상태
 
 **Files:**
-- Modify: `docs/qa/mvp-manual-test.md`
+- Create: `CaptureBox/Features/Settings/SettingsFeature.swift`
+- Create: `CaptureBox/Features/Settings/SettingsView.swift`
+- Modify: `CaptureBox/Features/Library/LibraryView.swift`
+
+- [ ] **Step 1: SettingsFeature 작성**
+
+Create `CaptureBox/Features/Settings/SettingsFeature.swift`:
+
+```swift
+import ComposableArchitecture
+import Photos
+
+@Reducer
+struct SettingsFeature {
+    @ObservableState
+    struct State: Equatable {
+        var authorizationStatus: PHAuthorizationStatus = .notDetermined
+    }
+
+    enum Action: Equatable {
+        case task
+        case authorizationStatusLoaded(PHAuthorizationStatus)
+        case manageLimitedLibraryTapped
+    }
+
+    @Dependency(\.photoLibraryClient) var photoLibraryClient
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .task:
+                return .send(.authorizationStatusLoaded(photoLibraryClient.authorizationStatus()))
+
+            case let .authorizationStatusLoaded(status):
+                state.authorizationStatus = status
+                return .none
+
+            case .manageLimitedLibraryTapped:
+                return .run { _ in
+                    await photoLibraryClient.presentLimitedLibraryPicker()
+                }
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: SettingsView 작성**
+
+Create `CaptureBox/Features/Settings/SettingsView.swift`:
+
+```swift
+import ComposableArchitecture
+import Photos
+import SwiftUI
+
+struct SettingsView: View {
+    let store: StoreOf<SettingsFeature>
+
+    var body: some View {
+        Form {
+            Section("사진 권한") {
+                LabeledContent("현재 상태", value: statusTitle)
+                if store.authorizationStatus == .limited {
+                    Button("선택한 사진 관리") {
+                        store.send(.manageLimitedLibraryTapped)
+                    }
+                }
+            }
+            Section("개인정보") {
+                Text("CaptureBox는 MVP에서 스크린샷과 저장 이미지를 서버로 업로드하지 않습니다. 분석은 기기 안에서만 진행되며 Photos 원본을 삭제하거나 이동하지 않습니다.")
+            }
+        }
+        .navigationTitle("설정")
+        .task {
+            await store.send(.task).finish()
+        }
+    }
+
+    private var statusTitle: String {
+        switch store.authorizationStatus {
+        case .authorized: "전체 접근"
+        case .limited: "선택한 사진만"
+        case .denied: "거부됨"
+        case .restricted: "제한됨"
+        case .notDetermined: "아직 요청하지 않음"
+        @unknown default: "알 수 없음"
+        }
+    }
+}
+```
+
+- [ ] **Step 3: LibraryView에 설정 메뉴 추가**
+
+Replace toolbar in `CaptureBox/Features/Library/LibraryView.swift`:
+
+```swift
+.toolbar {
+    ToolbarItem(placement: .topBarLeading) {
+        NavigationLink("검색") {
+            SearchView(store: Store(initialState: SearchFeature.State()) {
+                SearchFeature()
+            })
+        }
+    }
+    ToolbarItem(placement: .topBarTrailing) {
+        Menu {
+            Button("스캔") {
+                store.send(.scanButtonTapped)
+            }
+            NavigationLink("설정") {
+                SettingsView(store: Store(initialState: SettingsFeature.State()) {
+                    SettingsFeature()
+                })
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+    }
+}
+```
+
+- [ ] **Step 4: 빌드 확인**
+
+Run:
+
+```bash
+xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
+
+Expected: `** BUILD SUCCEEDED **`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add CaptureBox/Features/Settings CaptureBox/Features/Library/LibraryView.swift
+git commit -m "feat: add TCA settings feature"
+```
+
+---
+
+### Task 11: 썸네일 표시
+
+**Files:**
+- Create: `CaptureBox/Views/AssetThumbnailView.swift`
+- Modify: `CaptureBox/Features/Library/LibraryView.swift`
+
+- [ ] **Step 1: AssetThumbnailView 작성**
+
+Create `CaptureBox/Views/AssetThumbnailView.swift`:
+
+```swift
+import ComposableArchitecture
+import SwiftUI
+
+struct AssetThumbnailView: View {
+    let assetLocalIdentifier: String
+    @Dependency(\.photoLibraryClient) var photoLibraryClient
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .foregroundStyle(.secondary)
+                    }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .task {
+            image = await photoLibraryClient.requestImage(
+                assetLocalIdentifier,
+                CGSize(width: 300, height: 300)
+            )
+        }
+    }
+}
+```
+
+- [ ] **Step 2: LibraryView는 MVP에서 카운트 중심 유지**
+
+MVP 보관함은 카테고리 카운트 중심으로 둔다. 썸네일은 검색/상세 화면 확장 시 사용한다. 이 단계에서는 `AssetThumbnailView` 빌드 가능성만 확보한다.
+
+- [ ] **Step 3: 빌드 확인**
+
+Run:
+
+```bash
+xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+```
+
+Expected: `** BUILD SUCCEEDED **`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add CaptureBox/Views/AssetThumbnailView.swift
+git commit -m "feat: add reusable asset thumbnail view"
+```
+
+---
+
+### Task 12: QA 문서와 MVP 검증
+
+**Files:**
+- Create: `docs/qa/mvp-manual-test.md`
 
 - [ ] **Step 1: QA 문서 작성**
 
@@ -2031,7 +2399,7 @@ Create `docs/qa/mvp-manual-test.md`:
 
 - [ ] 첫 실행에서 사진 권한 안내가 한국어로 보인다.
 - [ ] 선택한 사진만 허용해도 앱이 보관함으로 진입한다.
-- [ ] 전체 접근 허용 시 최근 1년 스캔이 시작된다.
+- [ ] 전체 접근 허용 시 최근 1년 스캔이 가능하다.
 - [ ] 설정 화면에서 권한 상태가 올바르게 표시된다.
 
 ## 스캔
@@ -2055,7 +2423,7 @@ Create `docs/qa/mvp-manual-test.md`:
 
 - [ ] OCR 텍스트 일부로 검색하면 결과가 나온다.
 - [ ] 카테고리명으로 검색하면 결과가 나온다.
-- [ ] 결과가 없을 때 빈 상태가 어색하지 않다.
+- [ ] 결과가 없을 때 앱이 크래시하지 않는다.
 
 ## 비범위 확인
 
@@ -2104,19 +2472,21 @@ git commit -m "docs: add MVP manual QA checklist"
 
 ### 스펙 커버리지
 
-- 사진 접근 권한: Task 4, Task 8, Task 12
-- 최근 1년 스캔: Task 4, Task 7, Task 9
+- 사진 접근 권한: Task 3, Task 4, Task 5, Task 10
+- 최근 1년 스캔: Task 4, Task 6
 - 스크린샷과 저장 이미지 후보: Task 4
-- OCR/QR/바코드 분석: Task 5
-- 규칙 기반 자동 분류: Task 3
-- 6개 카테고리와 미분류: Task 2, Task 3, Task 10
-- 앱 내부 보관함: Task 6, Task 10
-- OCR 검색: Task 6, Task 11
-- 상세 화면 카테고리 변경: Task 10
-- 첫 스캔 요약: Task 9
-- Photos 원본 수정 제외: Task 12, Task 14
-- 광고 제외: Task 14
-- Gemma 4 E2B 제외: Task 14
+- OCR/QR/바코드 분석: Task 4
+- 규칙 기반 자동 분류: Task 4, Task 6
+- 6개 카테고리와 미분류: Task 2, Task 4, Task 6, Task 7
+- 앱 내부 보관함: Task 7
+- OCR 검색: Task 8
+- 상세 화면 카테고리 변경: Task 9
+- 첫 스캔 진행/요약: Task 6
+- Photos 원본 수정 제외: Task 10, Task 12
+- 광고 제외: Task 12
+- Gemma 4 E2B 제외: Task 12
+- TCA 일원화: Task 1부터 Task 10까지 전체 적용
+- Repository 레이어: Task 3, Task 4
 
 ### 범위 확인
 
@@ -2124,8 +2494,11 @@ git commit -m "docs: add MVP manual QA checklist"
 
 ### 구현 주의사항
 
-- `PHAsset.addedDate` 사용 가능 여부는 Xcode의 실제 SDK에서 확인한다. 컴파일 오류가 나면 `creationDate` fallback만 사용한다.
-- SwiftData 모델에서 enum은 rawValue 저장 방식을 유지한다.
+- TCA와 SwiftUI Observation 기반 API를 사용한다.
+- 화면별 ViewModel은 만들지 않는다.
+- `ScanCoordinator`는 만들지 않는다.
+- 복잡한 외부 작업은 TCA Dependency Client로 격리한다.
+- 저장소는 `CapturedImageRepository`로 추상화한다.
 - 사용자가 카테고리를 직접 바꾼 항목은 재스캔으로 덮어쓰지 않는다.
 - Vision OCR은 한국어/영어 혼합 이미지를 실제 기기에서 반드시 테스트한다.
-- 성능 문제가 있으면 `ScanCoordinator`에 배치 처리와 백프레셔를 추가한다.
+- 성능 문제가 있으면 `ScanFeature` effect 내부를 배치 처리로 쪼갠다.
