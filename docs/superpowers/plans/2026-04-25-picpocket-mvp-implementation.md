@@ -1,8 +1,8 @@
-# CaptureBox MVP Implementation Plan
+# PicPocket MVP Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** TCA 기반 iOS 18 SwiftUI 앱 `CaptureBox`를 만들어 최근 1년의 스크린샷과 저장 이미지 후보를 온디바이스로 분석하고, 앱 내부 보관함에서 6개 카테고리와 미분류로 자동 정리한다.
+**Goal:** TCA 기반 iOS 18 SwiftUI 앱 `PicPocket`를 만들어 최근 1년의 스크린샷과 저장 이미지 후보를 온디바이스로 분석하고, 앱 내부 보관함에서 6개 카테고리와 미분류로 자동 정리한다.
 
 **Architecture:** 전체 앱 구조는 TCA로 일원화한다. SwiftUI View는 `StoreOf<Feature>`만 관찰하고 액션을 보낸다. 상태 전이와 비동기 흐름은 Feature/Reducer가 담당하며, PhotoKit/Vision/SwiftData 접근은 TCA Dependency Client와 Repository 구현체로 분리한다.
 
@@ -41,11 +41,11 @@ PhotoKit / Vision / SwiftData
 
 ## 2. 파일 구조
 
-새 Xcode 프로젝트 루트는 `CaptureBox/`로 둔다.
+새 Xcode 프로젝트 루트는 `PicPocket/`로 둔다.
 
 ```text
-CaptureBox/
-  CaptureBoxApp.swift
+PicPocket/
+  PicPocketApp.swift
   App/
     AppFeature.swift
     AppView.swift
@@ -91,7 +91,7 @@ CaptureBox/
   Resources/
     InfoPlist.strings
 
-CaptureBoxTests/
+PicPocketTests/
   DomainTests.swift
   ClassificationClientTests.swift
   LibraryFeatureTests.swift
@@ -189,11 +189,11 @@ CaptureBoxTests/
 ### Task 1: Xcode 프로젝트 생성과 TCA 의존성 추가
 
 **Files:**
-- Create: `CaptureBox.xcodeproj`
-- Create: `CaptureBox/CaptureBoxApp.swift`
-- Create: `CaptureBox/App/AppFeature.swift`
-- Create: `CaptureBox/App/AppView.swift`
-- Create: `CaptureBox/Resources/InfoPlist.strings`
+- Create: `PicPocket.xcodeproj`
+- Create: `PicPocket/PicPocketApp.swift`
+- Create: `PicPocket/App/AppFeature.swift`
+- Create: `PicPocket/App/AppView.swift`
+- Create: `PicPocket/Resources/InfoPlist.strings`
 - Test: Xcode build
 
 - [ ] **Step 1: Xcode에서 iOS App 프로젝트 생성**
@@ -202,16 +202,16 @@ Run in Xcode:
 
 ```text
 File > New > Project > iOS > App
-Product Name: CaptureBox
+Product Name: PicPocket
 Team: 개인/조직 개발자 팀
-Organization Identifier: com.capturebox
+Organization Identifier: com.picpocket
 Interface: SwiftUI
 Language: Swift
 Testing System: XCTest
 Minimum Deployments: iOS 18.0
 ```
 
-Expected: `CaptureBox.xcodeproj`, `CaptureBox/`, `CaptureBoxTests/`가 생성된다.
+Expected: `PicPocket.xcodeproj`, `PicPocket/`, `PicPocketTests/`가 생성된다.
 
 - [ ] **Step 2: TCA 패키지 추가**
 
@@ -222,14 +222,14 @@ File > Add Package Dependencies...
 Package URL: https://github.com/pointfreeco/swift-composable-architecture
 Dependency Rule: Up to Next Major Version
 Add package product: ComposableArchitecture
-Target: CaptureBox
+Target: PicPocket
 ```
 
 Expected: 앱 타겟에서 `import ComposableArchitecture`가 가능하다.
 
 - [ ] **Step 3: 권한 문구 추가**
 
-Xcode target `CaptureBox`의 Info 설정에 아래 키를 추가한다.
+Xcode target `PicPocket`의 Info 설정에 아래 키를 추가한다.
 
 ```text
 Privacy - Photo Library Usage Description
@@ -241,7 +241,7 @@ Privacy - Photo Library Additions Usage Description
 
 - [ ] **Step 4: AppFeature 기본 뼈대 작성**
 
-Create `CaptureBox/App/AppFeature.swift`:
+Create `PicPocket/App/AppFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -289,7 +289,7 @@ struct AppFeature {
 
 - [ ] **Step 5: 임시 하위 Feature 작성**
 
-Create `CaptureBox/Features/Onboarding/OnboardingFeature.swift`:
+Create `PicPocket/Features/Onboarding/OnboardingFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -321,7 +321,7 @@ struct OnboardingFeature {
 }
 ```
 
-Create `CaptureBox/Features/Library/LibraryFeature.swift`:
+Create `PicPocket/Features/Library/LibraryFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -341,7 +341,7 @@ struct LibraryFeature {
 
 - [ ] **Step 6: AppView 작성**
 
-Create `CaptureBox/App/AppView.swift`:
+Create `PicPocket/App/AppView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -365,7 +365,7 @@ struct AppView: View {
 }
 ```
 
-Create `CaptureBox/Features/Onboarding/OnboardingView.swift`:
+Create `PicPocket/Features/Onboarding/OnboardingView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -393,7 +393,7 @@ struct OnboardingView: View {
 }
 ```
 
-Create `CaptureBox/Features/Library/LibraryView.swift`:
+Create `PicPocket/Features/Library/LibraryView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -413,14 +413,14 @@ struct LibraryView: View {
 
 - [ ] **Step 7: 앱 진입점 작성**
 
-Replace `CaptureBox/CaptureBoxApp.swift`:
+Replace `PicPocket/PicPocketApp.swift`:
 
 ```swift
 import ComposableArchitecture
 import SwiftUI
 
 @main
-struct CaptureBoxApp: App {
+struct PicPocketApp: App {
     var body: some Scene {
         WindowGroup {
             AppView(
@@ -438,7 +438,7 @@ struct CaptureBoxApp: App {
 Run:
 
 ```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: `** BUILD SUCCEEDED **`
@@ -446,8 +446,8 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 9: Commit**
 
 ```bash
-git add CaptureBox.xcodeproj CaptureBox CaptureBoxTests
-git commit -m "chore: create TCA CaptureBox project"
+git add PicPocket.xcodeproj PicPocket PicPocketTests
+git commit -m "chore: create TCA PicPocket project"
 ```
 
 ---
@@ -455,19 +455,19 @@ git commit -m "chore: create TCA CaptureBox project"
 ### Task 2: 도메인 모델 정의
 
 **Files:**
-- Create: `CaptureBox/Domain/CaptureCategory.swift`
-- Create: `CaptureBox/Domain/CapturedImage.swift`
-- Create: `CaptureBox/Domain/ScanModels.swift`
-- Create: `CaptureBox/Domain/VisionAnalysisResult.swift`
-- Test: `CaptureBoxTests/DomainTests.swift`
+- Create: `PicPocket/Domain/CaptureCategory.swift`
+- Create: `PicPocket/Domain/CapturedImage.swift`
+- Create: `PicPocket/Domain/ScanModels.swift`
+- Create: `PicPocket/Domain/VisionAnalysisResult.swift`
+- Test: `PicPocketTests/DomainTests.swift`
 
 - [ ] **Step 1: 도메인 테스트 작성**
 
-Create `CaptureBoxTests/DomainTests.swift`:
+Create `PicPocketTests/DomainTests.swift`:
 
 ```swift
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 final class DomainTests: XCTestCase {
     func testCategoryTitles() {
@@ -492,14 +492,14 @@ final class DomainTests: XCTestCase {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/DomainTests
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/DomainTests
 ```
 
 Expected: `Cannot find 'CaptureCategory' in scope`
 
 - [ ] **Step 3: CaptureCategory 작성**
 
-Create `CaptureBox/Domain/CaptureCategory.swift`:
+Create `PicPocket/Domain/CaptureCategory.swift`:
 
 ```swift
 import Foundation
@@ -535,7 +535,7 @@ enum CaptureCategory: String, CaseIterable, Codable, Equatable, Identifiable {
 
 - [ ] **Step 4: 나머지 도메인 모델 작성**
 
-Create `CaptureBox/Domain/VisionAnalysisResult.swift`:
+Create `PicPocket/Domain/VisionAnalysisResult.swift`:
 
 ```swift
 import Foundation
@@ -553,7 +553,7 @@ struct VisionAnalysisResult: Equatable, Codable {
 }
 ```
 
-Create `CaptureBox/Domain/CapturedImage.swift`:
+Create `PicPocket/Domain/CapturedImage.swift`:
 
 ```swift
 import Foundation
@@ -587,7 +587,7 @@ struct CapturedImage: Equatable, Identifiable, Codable {
 }
 ```
 
-Create `CaptureBox/Domain/ScanModels.swift`:
+Create `PicPocket/Domain/ScanModels.swift`:
 
 ```swift
 import Foundation
@@ -640,7 +640,7 @@ struct PhotoAssetCandidate: Equatable, Identifiable {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/DomainTests
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/DomainTests
 ```
 
 Expected: `** TEST SUCCEEDED **`
@@ -648,7 +648,7 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CaptureBox/Domain CaptureBoxTests/DomainTests.swift
+git add PicPocket/Domain PicPocketTests/DomainTests.swift
 git commit -m "feat: add capture domain models"
 ```
 
@@ -657,14 +657,14 @@ git commit -m "feat: add capture domain models"
 ### Task 3: Dependency Client와 Repository 인터페이스 작성
 
 **Files:**
-- Create: `CaptureBox/Dependencies/PhotoLibraryClient.swift`
-- Create: `CaptureBox/Dependencies/VisionClient.swift`
-- Create: `CaptureBox/Dependencies/ClassificationClient.swift`
-- Create: `CaptureBox/Dependencies/CapturedImageRepository.swift`
+- Create: `PicPocket/Dependencies/PhotoLibraryClient.swift`
+- Create: `PicPocket/Dependencies/VisionClient.swift`
+- Create: `PicPocket/Dependencies/ClassificationClient.swift`
+- Create: `PicPocket/Dependencies/CapturedImageRepository.swift`
 
 - [ ] **Step 1: PhotoLibraryClient 작성**
 
-Create `CaptureBox/Dependencies/PhotoLibraryClient.swift`:
+Create `PicPocket/Dependencies/PhotoLibraryClient.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -701,7 +701,7 @@ extension DependencyValues {
 
 - [ ] **Step 2: VisionClient 작성**
 
-Create `CaptureBox/Dependencies/VisionClient.swift`:
+Create `PicPocket/Dependencies/VisionClient.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -726,7 +726,7 @@ extension DependencyValues {
 
 - [ ] **Step 3: ClassificationClient 작성**
 
-Create `CaptureBox/Dependencies/ClassificationClient.swift`:
+Create `PicPocket/Dependencies/ClassificationClient.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -762,7 +762,7 @@ extension DependencyValues {
 
 - [ ] **Step 4: CapturedImageRepository 작성**
 
-Create `CaptureBox/Dependencies/CapturedImageRepository.swift`:
+Create `PicPocket/Dependencies/CapturedImageRepository.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -800,7 +800,7 @@ extension DependencyValues {
 Run:
 
 ```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: live 구현이 아직 없어 `type 'PhotoLibraryClient' has no member 'live'` 류의 오류가 난다.
@@ -814,22 +814,22 @@ Task 4에서 live 구현을 추가한 뒤 함께 커밋한다.
 ### Task 4: Live 구현과 SwiftData Persistence
 
 **Files:**
-- Create: `CaptureBox/Persistence/CapturedImageRecord.swift`
-- Create: `CaptureBox/Persistence/ScanSessionRecord.swift`
-- Create: `CaptureBox/Live/LivePhotoLibraryClient.swift`
-- Create: `CaptureBox/Live/LiveVisionClient.swift`
-- Create: `CaptureBox/Live/RuleBasedClassificationClient.swift`
-- Create: `CaptureBox/Live/SwiftDataCapturedImageRepository.swift`
-- Modify: `CaptureBox/CaptureBoxApp.swift`
-- Test: `CaptureBoxTests/ClassificationClientTests.swift`
+- Create: `PicPocket/Persistence/CapturedImageRecord.swift`
+- Create: `PicPocket/Persistence/ScanSessionRecord.swift`
+- Create: `PicPocket/Live/LivePhotoLibraryClient.swift`
+- Create: `PicPocket/Live/LiveVisionClient.swift`
+- Create: `PicPocket/Live/RuleBasedClassificationClient.swift`
+- Create: `PicPocket/Live/SwiftDataCapturedImageRepository.swift`
+- Modify: `PicPocket/PicPocketApp.swift`
+- Test: `PicPocketTests/ClassificationClientTests.swift`
 
 - [ ] **Step 1: Classification 테스트 작성**
 
-Create `CaptureBoxTests/ClassificationClientTests.swift`:
+Create `PicPocketTests/ClassificationClientTests.swift`:
 
 ```swift
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 final class ClassificationClientTests: XCTestCase {
     func testCouponWithQRCode() {
@@ -867,7 +867,7 @@ final class ClassificationClientTests: XCTestCase {
 
 - [ ] **Step 2: SwiftData record 작성**
 
-Create `CaptureBox/Persistence/CapturedImageRecord.swift`:
+Create `PicPocket/Persistence/CapturedImageRecord.swift`:
 
 ```swift
 import Foundation
@@ -919,7 +919,7 @@ final class CapturedImageRecord {
 }
 ```
 
-Create `CaptureBox/Persistence/ScanSessionRecord.swift`:
+Create `PicPocket/Persistence/ScanSessionRecord.swift`:
 
 ```swift
 import Foundation
@@ -963,7 +963,7 @@ final class ScanSessionRecord {
 
 - [ ] **Step 3: RuleBasedClassificationClient 작성**
 
-Create `CaptureBox/Live/RuleBasedClassificationClient.swift`:
+Create `PicPocket/Live/RuleBasedClassificationClient.swift`:
 
 ```swift
 import Foundation
@@ -1016,7 +1016,7 @@ extension ClassificationClient {
 
 - [ ] **Step 4: Vision live 작성**
 
-Create `CaptureBox/Live/LiveVisionClient.swift`:
+Create `PicPocket/Live/LiveVisionClient.swift`:
 
 ```swift
 import UIKit
@@ -1076,7 +1076,7 @@ private func detectCodes(_ cgImage: CGImage) async -> [String] {
 
 - [ ] **Step 5: PhotoLibrary live 작성**
 
-Create `CaptureBox/Live/LivePhotoLibraryClient.swift`:
+Create `PicPocket/Live/LivePhotoLibraryClient.swift`:
 
 ```swift
 import Photos
@@ -1164,7 +1164,7 @@ private func predicate(for range: ScanRange) -> NSPredicate {
 
 - [ ] **Step 6: SwiftData repository live 작성**
 
-Create `CaptureBox/Live/SwiftDataCapturedImageRepository.swift`:
+Create `PicPocket/Live/SwiftDataCapturedImageRepository.swift`:
 
 ```swift
 import Foundation
@@ -1264,16 +1264,16 @@ extension CapturedImageRepository {
 }
 ```
 
-- [ ] **Step 7: CaptureBoxApp에서 SwiftData container 연결**
+- [ ] **Step 7: PicPocketApp에서 SwiftData container 연결**
 
-Replace `CaptureBox/CaptureBoxApp.swift`:
+Replace `PicPocket/PicPocketApp.swift`:
 
 ```swift
 import ComposableArchitecture
 import SwiftUI
 
 @main
-struct CaptureBoxApp: App {
+struct PicPocketApp: App {
     var body: some Scene {
         WindowGroup {
             AppView(
@@ -1292,8 +1292,8 @@ struct CaptureBoxApp: App {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ClassificationClientTests
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/ClassificationClientTests
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: both commands succeed.
@@ -1301,7 +1301,7 @@ Expected: both commands succeed.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add CaptureBox/Dependencies CaptureBox/Live CaptureBox/Persistence CaptureBox/CaptureBoxApp.swift CaptureBoxTests/ClassificationClientTests.swift
+git add PicPocket/Dependencies PicPocket/Live PicPocket/Persistence PicPocket/PicPocketApp.swift PicPocketTests/ClassificationClientTests.swift
 git commit -m "feat: add TCA dependencies and live clients"
 ```
 
@@ -1310,19 +1310,19 @@ git commit -m "feat: add TCA dependencies and live clients"
 ### Task 5: OnboardingFeature 권한 플로우
 
 **Files:**
-- Modify: `CaptureBox/Features/Onboarding/OnboardingFeature.swift`
-- Modify: `CaptureBox/Features/Onboarding/OnboardingView.swift`
-- Test: `CaptureBoxTests/OnboardingFeatureTests.swift`
+- Modify: `PicPocket/Features/Onboarding/OnboardingFeature.swift`
+- Modify: `PicPocket/Features/Onboarding/OnboardingView.swift`
+- Test: `PicPocketTests/OnboardingFeatureTests.swift`
 
 - [ ] **Step 1: OnboardingFeature 테스트 작성**
 
-Create `CaptureBoxTests/OnboardingFeatureTests.swift`:
+Create `PicPocketTests/OnboardingFeatureTests.swift`:
 
 ```swift
 import ComposableArchitecture
 import Photos
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 @MainActor
 final class OnboardingFeatureTests: XCTestCase {
@@ -1347,7 +1347,7 @@ final class OnboardingFeatureTests: XCTestCase {
 
 - [ ] **Step 2: OnboardingFeature 구현**
 
-Replace `CaptureBox/Features/Onboarding/OnboardingFeature.swift`:
+Replace `PicPocket/Features/Onboarding/OnboardingFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1400,7 +1400,7 @@ struct OnboardingFeature {
 
 - [ ] **Step 3: OnboardingView 구현**
 
-Replace `CaptureBox/Features/Onboarding/OnboardingView.swift`:
+Replace `PicPocket/Features/Onboarding/OnboardingView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1443,7 +1443,7 @@ struct OnboardingView: View {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/OnboardingFeatureTests
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/OnboardingFeatureTests
 ```
 
 Expected: `** TEST SUCCEEDED **`
@@ -1451,7 +1451,7 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Features/Onboarding CaptureBoxTests/OnboardingFeatureTests.swift
+git add PicPocket/Features/Onboarding PicPocketTests/OnboardingFeatureTests.swift
 git commit -m "feat: add TCA onboarding permission flow"
 ```
 
@@ -1460,19 +1460,19 @@ git commit -m "feat: add TCA onboarding permission flow"
 ### Task 6: ScanFeature 구현
 
 **Files:**
-- Create: `CaptureBox/Features/Scan/ScanFeature.swift`
-- Create: `CaptureBox/Features/Scan/ScanView.swift`
-- Test: `CaptureBoxTests/ScanFeatureTests.swift`
+- Create: `PicPocket/Features/Scan/ScanFeature.swift`
+- Create: `PicPocket/Features/Scan/ScanView.swift`
+- Test: `PicPocketTests/ScanFeatureTests.swift`
 
 - [ ] **Step 1: ScanFeature 테스트 작성**
 
-Create `CaptureBoxTests/ScanFeatureTests.swift`:
+Create `PicPocketTests/ScanFeatureTests.swift`:
 
 ```swift
 import ComposableArchitecture
 import UIKit
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 @MainActor
 final class ScanFeatureTests: XCTestCase {
@@ -1528,7 +1528,7 @@ final class ScanFeatureTests: XCTestCase {
 
 - [ ] **Step 2: ScanFeature 구현**
 
-Create `CaptureBox/Features/Scan/ScanFeature.swift`:
+Create `PicPocket/Features/Scan/ScanFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1648,7 +1648,7 @@ struct ScanFeature {
 
 - [ ] **Step 3: ScanView 작성**
 
-Create `CaptureBox/Features/Scan/ScanView.swift`:
+Create `PicPocket/Features/Scan/ScanView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1684,7 +1684,7 @@ struct ScanView: View {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/ScanFeatureTests
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/ScanFeatureTests
 ```
 
 Expected: `** TEST SUCCEEDED **`
@@ -1692,7 +1692,7 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Features/Scan CaptureBoxTests/ScanFeatureTests.swift
+git add PicPocket/Features/Scan PicPocketTests/ScanFeatureTests.swift
 git commit -m "feat: add TCA scan feature"
 ```
 
@@ -1701,18 +1701,18 @@ git commit -m "feat: add TCA scan feature"
 ### Task 7: LibraryFeature와 보관함 화면
 
 **Files:**
-- Modify: `CaptureBox/Features/Library/LibraryFeature.swift`
-- Modify: `CaptureBox/Features/Library/LibraryView.swift`
-- Test: `CaptureBoxTests/LibraryFeatureTests.swift`
+- Modify: `PicPocket/Features/Library/LibraryFeature.swift`
+- Modify: `PicPocket/Features/Library/LibraryView.swift`
+- Test: `PicPocketTests/LibraryFeatureTests.swift`
 
 - [ ] **Step 1: LibraryFeature 테스트 작성**
 
-Create `CaptureBoxTests/LibraryFeatureTests.swift`:
+Create `PicPocketTests/LibraryFeatureTests.swift`:
 
 ```swift
 import ComposableArchitecture
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 @MainActor
 final class LibraryFeatureTests: XCTestCase {
@@ -1748,7 +1748,7 @@ final class LibraryFeatureTests: XCTestCase {
 
 - [ ] **Step 2: LibraryFeature 구현**
 
-Replace `CaptureBox/Features/Library/LibraryFeature.swift`:
+Replace `PicPocket/Features/Library/LibraryFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1812,7 +1812,7 @@ struct LibraryFeature {
 
 - [ ] **Step 3: LibraryView 구현**
 
-Replace `CaptureBox/Features/Library/LibraryView.swift`:
+Replace `PicPocket/Features/Library/LibraryView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1872,8 +1872,8 @@ struct LibraryView: View {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/LibraryFeatureTests
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/LibraryFeatureTests
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: both commands succeed after Task 8 creates `SearchFeature`.
@@ -1887,18 +1887,18 @@ Task 8에서 `SearchFeature`를 추가한 뒤 Library와 Search를 함께 커밋
 ### Task 8: SearchFeature와 OCR 검색
 
 **Files:**
-- Create: `CaptureBox/Features/Search/SearchFeature.swift`
-- Create: `CaptureBox/Features/Search/SearchView.swift`
-- Test: `CaptureBoxTests/SearchFeatureTests.swift`
+- Create: `PicPocket/Features/Search/SearchFeature.swift`
+- Create: `PicPocket/Features/Search/SearchView.swift`
+- Test: `PicPocketTests/SearchFeatureTests.swift`
 
 - [ ] **Step 1: SearchFeature 테스트 작성**
 
-Create `CaptureBoxTests/SearchFeatureTests.swift`:
+Create `PicPocketTests/SearchFeatureTests.swift`:
 
 ```swift
 import ComposableArchitecture
 import XCTest
-@testable import CaptureBox
+@testable import PicPocket
 
 @MainActor
 final class SearchFeatureTests: XCTestCase {
@@ -1937,7 +1937,7 @@ final class SearchFeatureTests: XCTestCase {
 
 - [ ] **Step 2: SearchFeature 구현**
 
-Create `CaptureBox/Features/Search/SearchFeature.swift`:
+Create `PicPocket/Features/Search/SearchFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -1985,7 +1985,7 @@ struct SearchFeature {
 
 - [ ] **Step 3: SearchView 구현**
 
-Create `CaptureBox/Features/Search/SearchView.swift`:
+Create `PicPocket/Features/Search/SearchView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2018,9 +2018,9 @@ struct SearchView: View {
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/SearchFeatureTests
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:CaptureBoxTests/LibraryFeatureTests
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/SearchFeatureTests
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:PicPocketTests/LibraryFeatureTests
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: all commands succeed.
@@ -2028,7 +2028,7 @@ Expected: all commands succeed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Features/Library CaptureBox/Features/Search CaptureBoxTests/LibraryFeatureTests.swift CaptureBoxTests/SearchFeatureTests.swift
+git add PicPocket/Features/Library PicPocket/Features/Search PicPocketTests/LibraryFeatureTests.swift PicPocketTests/SearchFeatureTests.swift
 git commit -m "feat: add TCA library and search features"
 ```
 
@@ -2037,14 +2037,14 @@ git commit -m "feat: add TCA library and search features"
 ### Task 9: ImageDetailFeature와 카테고리 수정
 
 **Files:**
-- Create: `CaptureBox/Features/ImageDetail/ImageDetailFeature.swift`
-- Create: `CaptureBox/Features/ImageDetail/ImageDetailView.swift`
-- Modify: `CaptureBox/Features/Search/SearchView.swift`
+- Create: `PicPocket/Features/ImageDetail/ImageDetailFeature.swift`
+- Create: `PicPocket/Features/ImageDetail/ImageDetailView.swift`
+- Modify: `PicPocket/Features/Search/SearchView.swift`
 - Test: build
 
 - [ ] **Step 1: ImageDetailFeature 작성**
 
-Create `CaptureBox/Features/ImageDetail/ImageDetailFeature.swift`:
+Create `PicPocket/Features/ImageDetail/ImageDetailFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2091,7 +2091,7 @@ struct ImageDetailFeature {
 
 - [ ] **Step 2: ImageDetailView 작성**
 
-Create `CaptureBox/Features/ImageDetail/ImageDetailView.swift`:
+Create `PicPocket/Features/ImageDetail/ImageDetailView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2131,7 +2131,7 @@ struct ImageDetailView: View {
 
 - [ ] **Step 3: SearchView에서 상세 진입 추가**
 
-Replace row in `CaptureBox/Features/Search/SearchView.swift`:
+Replace row in `PicPocket/Features/Search/SearchView.swift`:
 
 ```swift
 NavigationLink {
@@ -2157,7 +2157,7 @@ NavigationLink {
 Run:
 
 ```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: `** BUILD SUCCEEDED **`
@@ -2165,7 +2165,7 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Features/ImageDetail CaptureBox/Features/Search/SearchView.swift
+git add PicPocket/Features/ImageDetail PicPocket/Features/Search/SearchView.swift
 git commit -m "feat: add TCA image detail editing"
 ```
 
@@ -2174,13 +2174,13 @@ git commit -m "feat: add TCA image detail editing"
 ### Task 10: SettingsFeature와 권한 상태
 
 **Files:**
-- Create: `CaptureBox/Features/Settings/SettingsFeature.swift`
-- Create: `CaptureBox/Features/Settings/SettingsView.swift`
-- Modify: `CaptureBox/Features/Library/LibraryView.swift`
+- Create: `PicPocket/Features/Settings/SettingsFeature.swift`
+- Create: `PicPocket/Features/Settings/SettingsView.swift`
+- Modify: `PicPocket/Features/Library/LibraryView.swift`
 
 - [ ] **Step 1: SettingsFeature 작성**
 
-Create `CaptureBox/Features/Settings/SettingsFeature.swift`:
+Create `PicPocket/Features/Settings/SettingsFeature.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2223,7 +2223,7 @@ struct SettingsFeature {
 
 - [ ] **Step 2: SettingsView 작성**
 
-Create `CaptureBox/Features/Settings/SettingsView.swift`:
+Create `PicPocket/Features/Settings/SettingsView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2244,7 +2244,7 @@ struct SettingsView: View {
                 }
             }
             Section("개인정보") {
-                Text("CaptureBox는 MVP에서 스크린샷과 저장 이미지를 서버로 업로드하지 않습니다. 분석은 기기 안에서만 진행되며 Photos 원본을 삭제하거나 이동하지 않습니다.")
+                Text("PicPocket는 MVP에서 스크린샷과 저장 이미지를 서버로 업로드하지 않습니다. 분석은 기기 안에서만 진행되며 Photos 원본을 삭제하거나 이동하지 않습니다.")
             }
         }
         .navigationTitle("설정")
@@ -2268,7 +2268,7 @@ struct SettingsView: View {
 
 - [ ] **Step 3: LibraryView에 설정 메뉴 추가**
 
-Replace toolbar in `CaptureBox/Features/Library/LibraryView.swift`:
+Replace toolbar in `PicPocket/Features/Library/LibraryView.swift`:
 
 ```swift
 .toolbar {
@@ -2301,7 +2301,7 @@ Replace toolbar in `CaptureBox/Features/Library/LibraryView.swift`:
 Run:
 
 ```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: `** BUILD SUCCEEDED **`
@@ -2309,7 +2309,7 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add CaptureBox/Features/Settings CaptureBox/Features/Library/LibraryView.swift
+git add PicPocket/Features/Settings PicPocket/Features/Library/LibraryView.swift
 git commit -m "feat: add TCA settings feature"
 ```
 
@@ -2318,12 +2318,12 @@ git commit -m "feat: add TCA settings feature"
 ### Task 11: 썸네일 표시
 
 **Files:**
-- Create: `CaptureBox/Views/AssetThumbnailView.swift`
-- Modify: `CaptureBox/Features/Library/LibraryView.swift`
+- Create: `PicPocket/Views/AssetThumbnailView.swift`
+- Modify: `PicPocket/Features/Library/LibraryView.swift`
 
 - [ ] **Step 1: AssetThumbnailView 작성**
 
-Create `CaptureBox/Views/AssetThumbnailView.swift`:
+Create `PicPocket/Views/AssetThumbnailView.swift`:
 
 ```swift
 import ComposableArchitecture
@@ -2369,7 +2369,7 @@ MVP 보관함은 카테고리 카운트 중심으로 둔다. 썸네일은 검색
 Run:
 
 ```bash
-xcodebuild -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Expected: `** BUILD SUCCEEDED **`
@@ -2377,7 +2377,7 @@ Expected: `** BUILD SUCCEEDED **`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add CaptureBox/Views/AssetThumbnailView.swift
+git add PicPocket/Views/AssetThumbnailView.swift
 git commit -m "feat: add reusable asset thumbnail view"
 ```
 
@@ -2393,7 +2393,7 @@ git commit -m "feat: add reusable asset thumbnail view"
 Create `docs/qa/mvp-manual-test.md`:
 
 ```markdown
-# CaptureBox MVP 수동 QA
+# PicPocket MVP 수동 QA
 
 ## 권한
 
@@ -2438,7 +2438,7 @@ Create `docs/qa/mvp-manual-test.md`:
 Run:
 
 ```bash
-xcodebuild test -project CaptureBox.xcodeproj -scheme CaptureBox -destination 'platform=iOS Simulator,name=iPhone 16'
+xcodebuild test -project PicPocket.xcodeproj -scheme PicPocket -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
 Expected: `** TEST SUCCEEDED **`
@@ -2502,3 +2502,4 @@ git commit -m "docs: add MVP manual QA checklist"
 - 사용자가 카테고리를 직접 바꾼 항목은 재스캔으로 덮어쓰지 않는다.
 - Vision OCR은 한국어/영어 혼합 이미지를 실제 기기에서 반드시 테스트한다.
 - 성능 문제가 있으면 `ScanFeature` effect 내부를 배치 처리로 쪼갠다.
+
