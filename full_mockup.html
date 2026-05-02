@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>PicPocket Pro Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #F8FAFC;
+            --bg-secondary: #FFFFFF;
+            --bg-tertiary: #F1F5F9;
+            --text-primary: #0F172A;
+            --text-secondary: #64748B;
+            --accent: #2563EB;
+            --accent-soft: #DBEAFE;
+            --danger: #EF4444;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --border: #E2E8F0;
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
+            --safe-top: 20px;
+            --safe-bottom: 20px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #000000;
+                --bg-secondary: #0F172A;
+                --bg-tertiary: #1E293B;
+                --text-primary: #F8FAFC;
+                --text-secondary: #94A3B8;
+                --accent: #3B82F6;
+                --accent-soft: #1E3A8A;
+                --border: #1E293B;
+                --shadow: 0 20px 25px -5px rgba(0,0,0,0.3);
+            }
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            margin: 0; padding: 0; 
+            background-color: #ECEFF1; /* Desktop background */
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #111827; /* Dark mode desktop background */
+            }
+        }
+
+        /* Mobile Device Frame */
+        #app-frame {
+            position: relative;
+            width: 393px; /* iPhone width */
+            height: 852px; /* iPhone height */
+            background-color: var(--bg-primary);
+            border-radius: 44px; /* Hardware corner radius */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.1);
+            overflow: hidden;
+            border: 8px solid #1a1a1a; /* Fake bezel */
+        }
+
+        /* Dynamic Island/Notch fake for realism */
+        #app-frame::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 120px; height: 30px;
+            background: #1a1a1a;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+            z-index: 1000;
+        }
+
+        /* SPA Navigation Transition */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+            background-color: var(--bg-primary);
+            z-index: 1;
+        }
+        .screen.active { display: flex; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Header & Common UI */
+        header {
+            padding: calc(var(--safe-top) + 20px) 24px 12px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .title-large { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin: 0; }
+        .content-scroll { flex: 1; overflow-y: auto; padding: 0 24px 120px; }
+        /* Custom Scrollbar for App Frame */
+        .content-scroll::-webkit-scrollbar { width: 4px; }
+        .content-scroll::-webkit-scrollbar-track { background: transparent; }
+        .content-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        
+        .clickable { cursor: pointer; transition: opacity 0.2s; }
+        .clickable:active { opacity: 0.7; }
+
+        /* 0. Onboarding Screen */
+        #screen-onboarding { z-index: 100; background: linear-gradient(180deg, var(--accent-soft) 0%, var(--bg-primary) 40%); }
+        .onboarding-content { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; }
+        .onboarding-icon { width: 120px; height: 120px; background: var(--accent); border-radius: 40px; display: flex; align-items: center; justify-content: center; margin-bottom: 32px; box-shadow: 0 20px 40px rgba(37, 99, 235, 0.3); color: white; }
+        .onboarding-bullets { text-align: left; margin: 32px 0; width: 100%; }
+        .bullet { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+        .bullet-icon { background: var(--accent-soft); color: var(--accent); padding: 8px; border-radius: 12px; display: flex; }
+
+        /* 1. Library Screen */
+        .stat-banner { background: var(--accent); color: white; border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; position: relative; overflow: hidden; }
+        .stat-banner::after { content: ''; position: absolute; right: -20px; top: -20px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; }
+        .section-title { font-size: 18px; font-weight: 700; margin: 24px 0 16px; display: flex; justify-content: space-between; align-items: center; }
+        .category-list { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .cat-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); position: relative; cursor: pointer; transition: transform 0.2s; }
+        .cat-card:active { transform: scale(0.96); }
+        .cat-count { position: absolute; top: 20px; right: 20px; font-weight: 700; font-size: 14px; color: var(--text-secondary); }
+        
+        .review-item { min-width: 120px; height: 160px; background: var(--bg-tertiary); border-radius: 12px; cursor: pointer; transition: 0.2s; background-size: cover; background-position: center; position: relative; overflow: hidden; }
+        .review-item:active { transform: scale(0.96); }
+        .review-item::after { content: '검토 필요'; position: absolute; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,0.6); color: white; font-size: 11px; padding: 4px; border-radius: 6px; text-align: center; }
+
+        /* 2. Scan Screen */
+        .scan-container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .range-picker { display: flex; background: var(--bg-tertiary); padding: 6px; border-radius: 14px; width: 100%; margin-bottom: 32px; }
+        .range-btn { flex: 1; border: none; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; background: transparent; color: var(--text-secondary); transition: 0.2s; }
+        .range-btn.active { background: var(--bg-secondary); color: var(--text-primary); box-shadow: var(--shadow); }
+        .scan-status-card { background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 32px; width: 100%; text-align: center; border: 1px solid var(--border); }
+        .progress-ring { width: 140px; height: 140px; border-radius: 70px; border: 8px solid var(--bg-tertiary); border-top-color: var(--accent); animation: rotate 2s linear infinite; margin: 0 auto 24px; display: none; }
+        @keyframes rotate { to { transform: rotate(360deg); } }
+
+        /* 3. Search Screen */
+        .search-container { position: sticky; top: 0; background: var(--bg-primary); z-index: 5; padding-bottom: 12px; }
+        .search-input-wrapper { background: var(--bg-tertiary); border-radius: 16px; display: flex; align-items: center; padding: 14px 18px; gap: 12px; }
+        .search-input-wrapper input { border: none; background: none; flex: 1; font-size: 16px; color: var(--text-primary); outline: none; }
+        .tag-row { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+        .tag-row::-webkit-scrollbar { display: none; }
+        .tag { background: var(--bg-secondary); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: 0.2s; }
+        .tag:active { background: var(--bg-tertiary); }
+        .search-result { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.2s; }
+        .search-result:active { opacity: 0.7; }
+        .search-thumb { width: 80px; height: 80px; background: var(--bg-tertiary); border-radius: 12px; background-size: cover; background-position: center; }
+
+        /* 4. Image Detail Screen */
+        .detail-img-container { width: 100%; aspect-ratio: 9/16; background: var(--bg-tertiary); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 24px; position: relative; background-size: cover; background-position: center; }
+        .ocr-box { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; margin-top: 16px; position: relative; }
+        .copy-btn { position: absolute; top: 12px; right: 12px; padding: 6px 10px; background: var(--bg-tertiary); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--accent); }
+        .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+        .meta-item { background: var(--bg-tertiary); padding: 12px; border-radius: 12px; font-size: 13px; }
+
+        /* 5. Settings Screen */
+        .settings-group { background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border); overflow: hidden; }
+        .settings-row { padding: 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+        .settings-row:active { background: var(--bg-tertiary); }
+        .settings-row:last-child { border-bottom: none; }
+        .toggle-switch { width: 44px; height: 24px; border-radius: 12px; position: relative; cursor: pointer; transition: background-color 0.3s; }
+        .toggle-switch.active { background: var(--accent); }
+        .toggle-switch.inactive { background: var(--text-secondary); }
+        .toggle-knob { width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* Bottom Nav */
+        nav { 
+            position: absolute; bottom: 0; left: 0; right: 0; 
+            background: rgba(var(--bg-secondary-rgb), 0.8); backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            padding: 12px 24px calc(var(--safe-bottom) + 12px);
+            display: flex; justify-content: space-between; z-index: 50;
+        }
+        .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 10px; font-weight: 700; width: 60px; cursor: pointer; }
+        .nav-tab.active { color: var(--accent); }
+        .nav-tab svg { width: 24px; height: 24px; transition: 0.2s; }
+        .nav-tab:active svg { transform: scale(0.85); }
+
+        /* Button UI */
+        .btn-primary { background: var(--accent); color: white; border: none; padding: 18px 32px; border-radius: 18px; font-size: 16px; font-weight: 700; width: 100%; cursor: pointer; transition: 0.2s; }
+        .btn-primary:active { transform: scale(0.97); filter: brightness(0.9); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: none; padding: 14px; border-radius: 14px; font-weight: 600; cursor: pointer; }
+        .btn-secondary:active { opacity: 0.7; }
+
+        .icon-stroke { stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+</head>
+<body>
+<div id="app-frame">
+
+    <!-- 0. Onboarding Screen -->
+    <div id="screen-onboarding" class="screen active">
+        <div class="onboarding-content">
+            <div class="onboarding-icon">
+                <svg class="icon-stroke" viewBox="0 0 24 24" width="60" height="60"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            </div>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 12px;">반가워요!<br>PicPocket 입니다.</h1>
+            <p style="color: var(--text-secondary); line-height: 1.6;">지저분한 스크린샷 속에서<br>중요한 정보만 쏙쏙 찾아 드릴게요.</p>
+            
+            <div class="onboarding-bullets">
+                <div class="bullet">
+                    <div class="bullet-icon"><svg class="icon-stroke" width="20" height="20" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                    <div>
+                        <div style="font-weight: 700;">100% 온디바이스 보안</div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">사진을 서버에 올리지 않고 기기 안에서만 분석해요.</div>
+                    </div>
+                </div>
+                <div class="bullet">
+                    <div class="bullet-icon"><svg class="icon-stroke" width="20" height="20" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
+                    <div>
+                        <div style="font-weight: 700;">똑똑한 자동 분류</div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">쿠폰, 영수증, 티켓 등을 AI가 알아서 정리해줍니다.</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-primary" onclick="completeOnboarding()">사진 접근 허용하고 시작하기</button>
+            <p class="clickable" style="font-size: 12px; color: var(--text-secondary); margin-top: 16px;" onclick="alert('선택적 권한 모드로 시작합니다.'); completeOnboarding();">선택한 사진만 허용해도 기능을 사용할 수 있습니다.</p>
+        </div>
+    </div>
+
+    <!-- 1. Library Screen -->
+    <div id="screen-library" class="screen">
+        <header>
+            <h1 class="title-large">PicPocket</h1>
+            <div style="display: flex; gap: 16px;">
+                <svg class="icon-stroke clickable" width="24" height="24" viewBox="0 0 24 24" onclick="navigate('search')"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <svg class="icon-stroke clickable" width="24" height="24" viewBox="0 0 24 24" onclick="navigate('settings')"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </div>
+        </header>
+        <div class="content-scroll">
+            <div class="stat-banner">
+                <div style="font-size: 14px; opacity: 0.9;">오늘 정리된 이미지</div>
+                <div style="font-size: 32px; font-weight: 800; margin: 4px 0;">42개</div>
+                <div style="font-size: 13px; opacity: 0.8;">새로운 쿠폰 3개가 발견되었습니다.</div>
+            </div>
+
+            <div class="section-title">분류된 카테고리</div>
+            <div class="category-list">
+                <div class="cat-card" onclick="navigate('detail')">
+                    <div style="color: var(--warning);"><svg class="icon-stroke" width="32" height="32" viewBox="0 0 24 24"><path d="M21 8H3M21 16H3M8 12h8"/></svg></div>
+                    <div style="margin-top: 12px; font-weight: 700;">쿠폰/할인</div>
+                    <div class="cat-count">12</div>
+                </div>
+                <div class="cat-card" onclick="navigate('detail')">
+                    <div style="color: var(--success);"><svg class="icon-stroke" width="32" height="32" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+                    <div style="margin-top: 12px; font-weight: 700;">영수증</div>
+                    <div class="cat-count">8</div>
+                </div>
+                <div class="cat-card" onclick="navigate('detail')">
+                    <div style="color: var(--accent);"><svg class="icon-stroke" width="32" height="32" viewBox="0 0 24 24"><path d="M21 10V8a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 14v2a2 2 0 002 2h14a2 2 0 002-2v-2M3 10a2 2 0 012 2v0a2 2 0 01-2 2M21 10a2 2 0 00-2 2v0a2 2 0 002 2"/></svg></div>
+                    <div style="margin-top: 12px; font-weight: 700;">티켓/예약</div>
+                    <div class="cat-count">3</div>
+                </div>
+                <div class="cat-card" onclick="navigate('detail')">
+                    <div style="color: #8B5CF6;"><svg class="icon-stroke" width="32" height="32" viewBox="0 0 24 24"><path d="M21 10l-3-3m0 0l-3 3m3-3v12M3 14l3 3m0 0l3-3m-3 3V5"/></svg></div>
+                    <div style="margin-top: 12px; font-weight: 700;">배송정보</div>
+                    <div class="cat-count">5</div>
+                </div>
+            </div>
+
+            <div class="section-title">
+                검토가 필요한 이미지 
+                <span class="clickable" style="font-size: 13px; color: var(--accent); font-weight: 500;" onclick="alert('모든 검토 대기열 목록 화면으로 이동합니다.')">모두 보기</span>
+            </div>
+            <div style="display: flex; gap: 12px; overflow-x: auto; padding: 4px;">
+                <div class="review-item" onclick="navigate('detail')"></div>
+                <div class="review-item" onclick="navigate('detail')"></div>
+                <div class="review-item" onclick="navigate('detail')"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Scan Screen -->
+    <div id="screen-scan" class="screen">
+        <header><h1 class="title-large">스캔</h1></header>
+        <div class="content-scroll">
+            <div class="scan-container">
+                <div class="range-picker">
+                    <button class="range-btn active">최근 1년</button>
+                    <button class="range-btn">전체 기간</button>
+                </div>
+
+                <div class="scan-status-card" id="scan-status-card">
+                    <div class="progress-ring" id="loader"></div>
+                    <div id="scan-init-content">
+                        <div style="font-size: 64px; margin-bottom: 16px;">🔍</div>
+                        <h2 style="font-weight: 800; margin-bottom: 8px;">분석할 이미지 찾기</h2>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 32px;">최근 1년 동안 찍은 스크린샷과<br>저장된 이미지를 분석합니다.</p>
+                        <button class="btn-primary" onclick="startScan()">분석 시작하기</button>
+                    </div>
+                    <div id="scan-running-content" style="display: none;">
+                        <h2 style="font-weight: 800; margin-bottom: 8px;" id="scan-phase-text">이미지 수집 중...</h2>
+                        <div style="font-size: 32px; font-weight: 800; color: var(--accent);" id="scan-count">0 / 142</div>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-top: 16px;">분석 중에는 앱을 끄지 말아주세요.</p>
+                        <button class="btn-secondary" style="margin-top: 32px; width: 100%;" onclick="cancelScan()">중단하기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Search Screen -->
+    <div id="screen-search" class="screen">
+        <header><h1 class="title-large">검색</h1></header>
+        <div class="content-scroll">
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <svg class="icon-stroke" width="20" height="20" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="main-search-input" placeholder="내용, 카테고리, 날짜 검색" onkeypress="if(event.key === 'Enter'){this.blur();}">
+                </div>
+                <div class="tag-row">
+                    <div class="tag">#영수증</div>
+                    <div class="tag">#운송장</div>
+                    <div class="tag">#계좌번호</div>
+                    <div class="tag">#할인코드</div>
+                    <div class="tag">#주소</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <div class="search-result" onclick="navigate('detail')">
+                    <div class="search-thumb"></div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700; font-size: 15px;">스타벅스 기프티콘</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin: 4px 0;">분류: 쿠폰 • 2026.04.30</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); font-family: monospace;">유효기간: 2026-12-31...</div>
+                    </div>
+                </div>
+                <div class="search-result" onclick="navigate('detail')">
+                    <div class="search-thumb"></div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 700; font-size: 15px;">쿠팡 주문 영수증</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin: 4px 0;">분류: 영수증 • 2026.05.01</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); font-family: monospace;">총 결제금액: 24,500원...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Image Detail Screen -->
+    <div id="screen-detail" class="screen">
+        <header>
+            <svg class="icon-stroke clickable" width="24" height="24" viewBox="0 0 24 24" onclick="navigate('library')"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <h1 style="font-size: 18px; font-weight: 700;">상세 정보</h1>
+            <svg class="icon-stroke clickable" width="24" height="24" viewBox="0 0 24 24" onclick="alert('공유 시트가 열립니다.')"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        </header>
+        <div class="content-scroll">
+            <div class="detail-img-container"></div>
+            
+            <div class="section-title">분류 수정</div>
+            <div class="range-picker">
+                <button class="range-btn active">쿠폰</button>
+                <button class="range-btn">영수증</button>
+                <button class="range-btn">기타</button>
+            </div>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">분석 신뢰도</div>
+                    <div style="font-weight: 700; color: var(--success);">98%</div>
+                </div>
+                <div class="meta-item">
+                    <div style="color: var(--text-secondary); margin-bottom: 4px;">민감 정보</div>
+                    <div style="font-weight: 700;">없음</div>
+                </div>
+            </div>
+
+            <div class="section-title">인식된 텍스트</div>
+            <div class="ocr-box" style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">
+                <div class="copy-btn clickable" onclick="alert('텍스트가 클립보드에 복사되었습니다.')">복사</div>
+                [Starbucks]<br>아메리카노 Tall (HOT)<br>유효기간: 2026.12.31 까지<br>사용처: 전국 스타벅스 매장<br>바코드번호: 1234 5678 9012
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Settings Screen -->
+    <div id="screen-settings" class="screen">
+        <header>
+            <h1 class="title-large">설정</h1>
+            <div style="width: 24px;"></div>
+        </header>
+        <div class="content-scroll">
+            <div class="section-title">데이터 및 권한</div>
+            <div class="settings-group">
+                <div class="settings-row" onclick="alert('기기 설정의 앱 권한 화면으로 이동합니다.')">
+                    <span>사진 접근 권한</span>
+                    <span style="color: var(--success); font-weight: 600;">전체 허용</span>
+                </div>
+                <div class="settings-row" onclick="if(confirm('정말 모든 분석 데이터를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) alert('초기화가 완료되었습니다.')">
+                    <span>분석 데이터 초기화</span>
+                    <span style="color: var(--danger); font-weight: 600;">초기화</span>
+                </div>
+                <div class="settings-row" onclick="toggleSwitch(this.querySelector('.toggle-switch'))">
+                    <span>Face ID 잠금</span>
+                    <div class="toggle-switch active" id="faceid-toggle">
+                        <div class="toggle-knob" style="transform: translateX(20px);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">앱 정보</div>
+            <div class="settings-group">
+                <div class="settings-row">
+                    <span>버전</span>
+                    <span style="color: var(--text-secondary);">1.0.0 (MVP)</span>
+                </div>
+                <div class="settings-row" onclick="alert('오픈소스 라이선스 상세 화면으로 이동합니다.')">
+                    <span>오픈소스 라이선스</span>
+                    <svg class="icon-stroke" width="16" height="16" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+            </div>
+            
+            <p style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 40px;">PicPocket은 당신의 소중한 개인정보를<br>기기 밖으로 보내지 않습니다. 🔒</p>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav id="bottom-nav">
+        <div class="nav-tab active" onclick="navigate('library')">
+            <svg class="icon-stroke" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>보관함</span>
+        </div>
+        <div class="nav-tab" onclick="navigate('scan')">
+            <svg class="icon-stroke" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 12h10"/></svg>
+            <span>스캔</span>
+        </div>
+        <div class="nav-tab" onclick="navigate('search')">
+            <svg class="icon-stroke" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <span>검색</span>
+        </div>
+        <div class="nav-tab" onclick="navigate('settings')">
+            <svg class="icon-stroke" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <span>설정</span>
+        </div>
+    </nav>
+
+</div> <!-- /#app-frame -->
+
+    <script>
+        // Main Navigation
+        function navigate(screenId) {
+            // Cancel any ongoing scan if leaving the scan view
+            if (screenId !== 'scan' && scanInterval) {
+                cancelScan();
+            }
+
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('screen-' + screenId);
+            if (target) {
+                target.classList.add('active');
+                target.querySelector('.content-scroll').scrollTop = 0; // Reset scroll position
+            }
+
+            document.querySelectorAll('.nav-tab').forEach((tab, idx) => {
+                const routes = ['library', 'scan', 'search', 'settings'];
+                tab.classList.toggle('active', routes[idx] === screenId);
+            });
+
+            document.getElementById('bottom-nav').style.display = (screenId === 'onboarding' || screenId === 'detail') ? 'none' : 'flex';
+        }
+
+        // Onboarding
+        function completeOnboarding() {
+            navigate('scan');
+        }
+
+        // Scan Logic
+        let scanInterval;
+        function startScan() {
+            document.getElementById('scan-init-content').style.display = 'none';
+            document.getElementById('scan-running-content').style.display = 'block';
+            document.getElementById('loader').style.display = 'block';
+            
+            let count = 0;
+            const phases = ["이미지 수집 중...", "텍스트 분석 중...", "카테고리 분류 중...", "저장 중..."];
+            scanInterval = setInterval(() => {
+                count += Math.floor(Math.random() * 3) + 1;
+                if (count >= 142) {
+                    count = 142;
+                    clearInterval(scanInterval);
+                    scanInterval = null;
+                    setTimeout(() => {
+                        alert('스캔이 완료되었습니다! 42개의 정보가 보관함에 정리되었습니다.');
+                        navigate('library');
+                        // Reset scan UI for next time
+                        cancelScan();
+                    }, 300);
+                }
+                document.getElementById('scan-count').innerText = count + " / 142";
+                document.getElementById('scan-phase-text').innerText = phases[Math.floor((count/142) * phases.length)];
+            }, 50);
+        }
+
+        function cancelScan() {
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+            document.getElementById('scan-init-content').style.display = 'block';
+            document.getElementById('scan-running-content').style.display = 'none';
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        // Settings Toggle Switch Logic
+        function toggleSwitch(element) {
+            const isCurrentlyActive = element.classList.contains('active');
+            const knob = element.querySelector('.toggle-knob');
+            
+            if (isCurrentlyActive) {
+                element.classList.remove('active');
+                element.classList.add('inactive');
+                knob.style.transform = 'translateX(0)';
+            } else {
+                element.classList.remove('inactive');
+                element.classList.add('active');
+                knob.style.transform = 'translateX(20px)';
+            }
+        }
+
+        // Setup Event Listeners after DOM loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Range/Segment Buttons (Scan and Detail screen)
+            document.querySelectorAll('.range-picker').forEach(picker => {
+                const btns = picker.querySelectorAll('.range-btn');
+                btns.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        btns.forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        // Fake toast for Detail Screen category change
+                        if(this.innerText === '쿠폰' || this.innerText === '영수증' || this.innerText === '기타') {
+                            alert(`카테고리가 '${this.innerText}'(으)로 변경되었습니다.`);
+                        }
+                    });
+                });
+            });
+
+            // Search Tags clicking -> insert into input
+            document.querySelectorAll('.tag').forEach(tag => {
+                tag.addEventListener('click', function() {
+                    const input = document.getElementById('main-search-input');
+                    input.value = this.innerText.replace('#', '');
+                    input.focus();
+                });
+            });
+        });
+
+        // Initialize App to Onboarding
+        navigate('onboarding');
+    </script>
+</body>
+</html>
