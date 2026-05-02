@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ComposableArchitecture
+import SwiftData
 
 @main
 struct PicPocketApp: App {
@@ -18,5 +19,6 @@ struct PicPocketApp: App {
         WindowGroup {
             AppView(store: store)
         }
+        .modelContainer(RepositoryContainer.shared.modelContainer)
     }
 }
